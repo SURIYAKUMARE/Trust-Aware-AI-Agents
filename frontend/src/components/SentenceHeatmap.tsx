@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { SentenceVerification } from '../types';
 import { ShieldCheck, AlertTriangle, XCircle, UserCheck, Info } from 'lucide-react';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface SentenceHeatmapProps {
   sentences?: SentenceVerification[];
@@ -24,13 +25,13 @@ export const SentenceHeatmap: React.FC<SentenceHeatmapProps> = ({
           {sentences && sentences.length > 0 && (
             <button
               onClick={() => setShowRaw(false)}
-              className="text-indigo-400 hover:text-indigo-300 underline font-mono text-xs"
+              className="text-indigo-400 hover:text-indigo-300 underline font-mono text-xs cursor-pointer"
             >
               Show Evidence Heatmap ({sentences.length} sentences)
             </button>
           )}
         </div>
-        <p className="text-slate-200 leading-relaxed text-sm whitespace-pre-wrap">{rawText}</p>
+        <MarkdownRenderer content={rawText} />
       </div>
     );
   }

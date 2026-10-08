@@ -7,16 +7,18 @@ import {
   BarChart3, 
   Award, 
   Network, 
-  Sparkles,
-  ShieldCheck,
-  Flame
+  Sparkles, 
+  ShieldCheck, 
+  Flame,
+  Settings,
+  Cpu
 } from 'lucide-react';
 
 export type TabType = 
   | 'console' 
   | 'timeline' 
   | 'compare' 
-  | 'playground'
+  | 'playground' 
   | 'escalations' 
   | 'monitoring' 
   | 'evaluation' 
@@ -27,12 +29,16 @@ interface HeaderProps {
   activeTab: TabType;
   onTabChange: (tab: TabType) => void;
   pendingEscalationsCount?: number;
+  onOpenSettings?: () => void;
+  currentProvider?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   activeTab,
   onTabChange,
   pendingEscalationsCount = 0,
+  onOpenSettings,
+  currentProvider = 'Built-in Engine',
 }) => {
   const tabs: Array<{ id: TabType; label: string; icon: React.ReactNode; badge?: number }> = [
     { id: 'console', label: 'Agent Console', icon: <Bot className="w-4 h-4" /> },
@@ -54,9 +60,9 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-16 gap-3">
           {/* Logo & Brand */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
               <ShieldCheck className="w-6 h-6 text-white" />
             </div>
@@ -67,12 +73,12 @@ export const Header: React.FC<HeaderProps> = ({
                   v1.0 POC
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400">Confidence-Aware AI Agent</p>
+              <p className="text-[11px] text-slate-400 hidden sm:block">Confidence-Aware AI Agent</p>
             </div>
           </div>
 
           {/* Navigation Tabs */}
-          <nav className="flex items-center gap-1 overflow-x-auto py-2">
+          <nav className="flex items-center gap-1 overflow-x-auto py-2 scrollbar-none">
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
               return (
@@ -88,7 +94,7 @@ export const Header: React.FC<HeaderProps> = ({
                   {tab.icon}
                   <span>{tab.label}</span>
                   {tab.badge !== undefined && tab.badge > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-mono font-bold">
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-mono font-bold animate-pulse">
                       {tab.badge}
                     </span>
                   )}
@@ -96,6 +102,21 @@ export const Header: React.FC<HeaderProps> = ({
               );
             })}
           </nav>
+
+          {/* Model Settings Button */}
+          {onOpenSettings && (
+            <div className="shrink-0 flex items-center">
+              <button
+                onClick={onOpenSettings}
+                title="Configure AI Model & Keys"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-blue-500/50 text-slate-300 hover:text-white transition-all text-xs font-medium cursor-pointer shadow-sm group"
+              >
+                <Cpu className="w-3.5 h-3.5 text-blue-400 group-hover:rotate-45 transition-transform" />
+                <span className="hidden md:inline font-mono text-[11px]">{currentProvider}</span>
+                <Settings className="w-3.5 h-3.5 text-slate-400 ml-0.5" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

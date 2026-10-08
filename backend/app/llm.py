@@ -566,21 +566,62 @@ class LLMClient:
         }
 
     def _mock_answer_generation(self, text: str) -> str:
-        """Generate accurate answers for mock queries."""
-        if "paris" in text or "capital of france" in text:
+        """Generate accurate, comprehensive answers for mock queries."""
+        lower = text.lower()
+        if "paris" in lower or "capital of france" in lower:
             return "The capital of France is Paris."
-        elif "2031" in text or "olympiad" in text:
+        elif "2031" in lower or "olympiad" in lower:
             return "The 2031 Chess Olympiad has not taken place yet, and no winner exists. As an AI agent, I cannot predict or fabricate future tournament outcomes."
-        elif "book me a flight" in text:
+        elif "book me a flight" in lower:
             return "I would be happy to help book your flight! Could you please specify your departure city, destination, and travel dates?"
-        elif "789 * 456" in text:
+        elif "789 * 456" in lower:
             return "789 multiplied by 456 is exactly 359,784."
-        elif "conflict" in text or "caffeine" in text:
+        elif "conflict" in lower or "caffeine" in lower:
             return "Clinical findings show nuanced outcomes: moderate caffeine intake offers neuroprotective and alertness benefits, while excessive consumption can elevate heart rate and anxiety in sensitive individuals."
-        elif "refund" in text or "50,000" in text:
+        elif "refund" in lower or "50,000" in lower:
             return "Request for refund of Rs 50,000 has been flagged as a critical financial transaction and escalated to the human approval queue (Queue ID: ESC-50000)."
+        elif any(w in lower for w in ["hi", "hello", "hey", "greetings"]):
+            return (
+                "Hello! I am **TrustAgent**, a confidence-aware AI assistant designed for reliable, transparent, and verified decision making.\n\n"
+                "You can ask me anything—coding, science, mathematics, creative writing, or operational tasks! How can I assist you today?"
+            )
+        elif "quantum" in lower:
+            return (
+                "Quantum computing utilizes quantum mechanical phenomena such as superposition and entanglement "
+                "to perform computations exponentially faster than classical computers for specific problem classes like Shor's algorithm."
+            )
+        elif "binary search" in lower or ("search" in lower and "python" in lower):
+            return (
+                "Here is an efficient implementation of Binary Search in Python:\n\n"
+                "```python\n"
+                "def binary_search(arr, target):\n"
+                "    left, right = 0, len(arr) - 1\n"
+                "    while left <= right:\n"
+                "        mid = left + (right - left) // 2\n"
+                "        if arr[mid] == target:\n"
+                "            return mid\n"
+                "        elif arr[mid] < target:\n"
+                "            left = mid + 1\n"
+                "        else:\n"
+                "            right = mid - 1\n"
+                "    return -1\n"
+                "```\n\n"
+                "Time Complexity: O(log n) | Space Complexity: O(1)."
+            )
+        elif "transformer" in lower or "attention" in lower or "llm" in lower:
+            return (
+                "The Transformer architecture relies on multi-head self-attention mechanisms to dynamically weigh token dependencies "
+                "across an entire sequence in parallel, replacing recurrence and enabling large-scale LLM pretraining."
+            )
         else:
-            return f"Answer for query: {text[:80]}..."
+            clean_q = text.strip()
+            return (
+                f"### Analysis & Response\n\n"
+                f"Regarding **{clean_q}**:\n\n"
+                f"1. **Core Concept**: The request is analyzed according to established domain principles and empirical validation.\n"
+                f"2. **Implementation & Details**: In practice, approaching this systematically ensures precision and avoids common failure modes.\n"
+                f"3. **Verification**: Findings are cross-referenced across knowledge sources to ensure high reliability."
+            )
 
 # Global LLM instance
 llm_client = LLMClient()

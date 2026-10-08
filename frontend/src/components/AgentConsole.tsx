@@ -4,6 +4,7 @@ import { ConfidenceGauge } from './ConfidenceGauge';
 import { WhyUnsurePanel } from './WhyUnsurePanel';
 import { SentenceHeatmap } from './SentenceHeatmap';
 import { exportTracePdf } from '../utils/exportPdf';
+import { MarkdownRenderer } from './MarkdownRenderer';
 import { 
   Send, 
   Sparkles, 
@@ -38,7 +39,10 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
   }>>([
     {
       sender: 'agent',
-      text: "Hello! I am TrustAgent, a confidence-aware AI system. I don't just generate answers—I quantify my certainty across 4 independent evaluation engines, explain my doubts, and route actions safely (verifying with tools, asking clarifying questions, or escalating high-stakes risks). Try asking me a question below!",
+      text: "Hello! I am **TrustAgent**, a confidence-aware conversational AI designed for reliable, honest decision making.\n\n" +
+            "You can ask me anything—just like ChatGPT, Gemini, or Claude! I cover programming, science, mathematics, operational planning, and general queries.\n\n" +
+            "Unlike traditional LLMs that guess blindly, I quantify my confidence across 4 independent evaluation engines, explain why I am unsure, highlight supporting evidence, and verify claims with external tools.\n\n" +
+            "Try one of the suggested prompts below or ask any question!",
     }
   ]);
 
@@ -70,11 +74,12 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
   };
 
   const samplePrompts = [
-    { label: 'Easy Fact', text: 'What is the capital of France?' },
-    { label: 'Trap Question', text: 'Who won the 2031 Chess Olympiad?' },
-    { label: 'Ambiguous Query', text: 'Book me a flight' },
-    { label: 'Tricky Math', text: 'Calculate 789 * 456' },
-    { label: 'High Stakes', text: 'Refund Rs 50,000 to this account' },
+    { label: '💡 Quantum Computing', text: 'Explain quantum computing and its core principles in simple terms' },
+    { label: '🐍 Python Algorithm', text: 'Write binary search algorithm in Python' },
+    { label: '📐 Exact Math', text: 'Calculate 789 * 456' },
+    { label: '⚠️ Trap Question', text: 'Who won the 2031 Chess Olympiad?' },
+    { label: '🛡️ High-Stakes Wire', text: 'Initiate an urgent wire transfer of $50,000 to vendor account #88219' },
+    { label: '❓ Ambiguous Query', text: 'Book me a flight' },
   ];
 
   return (
@@ -86,7 +91,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
           <button
             key={idx}
             onClick={() => handleSampleClick(s.text)}
-            className="px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-slate-300 hover:border-blue-500/50 hover:bg-slate-800/80 transition-colors whitespace-nowrap flex items-center gap-1.5"
+            className="px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-slate-300 hover:border-blue-500/50 hover:bg-slate-800/80 transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer"
           >
             <Sparkles className="w-3 h-3 text-blue-400" />
             <span>{s.label}</span>
@@ -117,12 +122,16 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
                       : 'bg-slate-900/90 border border-slate-800/80 text-slate-200 shadow-lg'
                   }`}
                 >
-                  {msg.sender === 'agent' && msg.trace?.confidence_report?.sentences ? (
-                    <SentenceHeatmap
-                      sentences={msg.trace.confidence_report.sentences}
-                      rawText={msg.text}
-                      hasHumanVerifiedEvidence={msg.trace.confidence_report.has_human_verified_evidence}
-                    />
+                  {msg.sender === 'agent' ? (
+                    msg.trace?.confidence_report?.sentences ? (
+                      <SentenceHeatmap
+                        sentences={msg.trace.confidence_report.sentences}
+                        rawText={msg.text}
+                        hasHumanVerifiedEvidence={msg.trace.confidence_report.has_human_verified_evidence}
+                      />
+                    ) : (
+                      <MarkdownRenderer content={msg.text} />
+                    )
                   ) : (
                     <p className="whitespace-pre-wrap">{msg.text}</p>
                   )}
@@ -210,7 +219,7 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
           type="text"
           value={inputQuery}
           onChange={(e) => setInputQuery(e.target.value)}
-          placeholder="Ask TrustAgent any question, arithmetic problem, or operational request..."
+          placeholder="Ask TrustAgent anything (code, math, science, creative writing, or operations)..."
           disabled={isLoading}
           className="flex-1 bg-slate-900/90 border border-slate-800 text-slate-100 placeholder-slate-500 text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all shadow-inner"
         />

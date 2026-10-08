@@ -9,8 +9,10 @@ import { EvaluationView } from './components/EvaluationView';
 import { ArchitectureView } from './components/ArchitectureView';
 import { DemoMode } from './components/DemoMode';
 import { AdversarialPlayground } from './components/AdversarialPlayground';
+import { ModelSettingsModal } from './components/ModelSettingsModal';
 import { DecisionTrace, CompareResult } from './types';
 import { api } from './api';
+import { getStoredModelSettings } from './services/clientAgent';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<TabType>('console');
@@ -19,6 +21,25 @@ export function App() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [pendingEscalationsCount, setPendingEscalationsCount] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [providerLabel, setProviderLabel] = useState<string>('🛡️ TrustEngine');
+
+  const refreshProviderLabel = () => {
+    const s = getStoredModelSettings();
+    if (s.provider === 'gemini') {
+      setProviderLabel('⚡ Gemini 2.0');
+    } else if (s.provider === 'openai') {
+      setProviderLabel('✨ GPT-4o');
+    } else if (s.customBackendUrl) {
+      setProviderLabel('⚙️ Custom API');
+    } else {
+      setProviderLabel('🛡️ TrustEngine');
+    }
+  };
+
+  useEffect(() => {
+    refreshProviderLabel();
+  }, []);
 
   // Poll or check pending escalations count
   const checkEscalations = async () => {
@@ -80,6 +101,8 @@ export function App() {
           setErrorMessage(null);
         }}
         pendingEscalationsCount={pendingEscalationsCount}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        currentProvider={providerLabel}
       />
 
       {/* Error alert toast if present */}
@@ -143,6 +166,13 @@ export function App() {
           <DemoMode />
         )}
       </main>
+
+      {/* Model & Provider Settings Modal */}
+      <ModelSettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onSave={refreshProviderLabel}
+      />
     </div>
   );
 }
