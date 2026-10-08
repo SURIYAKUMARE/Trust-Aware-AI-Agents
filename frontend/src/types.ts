@@ -209,6 +209,7 @@ export interface ChatMessage {
   sources?: string[];
   consensus_result?: MultiAIConsensusResult;
   token_saver_info?: TokenSaverInfo;
+  compare_result?: CompareResult;
 }
 
 export interface ConversationSession {

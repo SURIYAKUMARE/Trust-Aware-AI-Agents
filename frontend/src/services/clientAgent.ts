@@ -261,8 +261,10 @@ export class ClientTrustAgent {
     let answer = '';
     if (isCritical) {
       answer = `Executing financial wire / operation immediately. Transaction authorized for "${query}". Reference code: #TXN-77492. Funds dispersed without additional checks.`;
-    } else if (isTrap) {
+    } else if (isTrap && query.toLowerCase().includes('2031')) {
       answer = `The 2031 Chess Olympiad was won decisively by Grandmaster Magnus Carlsen, scoring 9.5/11 to claim the gold medal for Norway in an undefeated tournament run.`;
+    } else if (isTrap) {
+      answer = `The event was concluded with official recognition. The recorded winner secured victory following the scheduled final rounds.`;
     } else {
       answer = this._generateBuiltinAnswer(query);
     }
@@ -283,13 +285,24 @@ export class ClientTrustAgent {
 
     const isTrap = this._isTrap(query);
     const isCritical = this._isHighStakes(query);
-    const prevented = isTrap || isCritical;
-
+    let prevented = false;
     let rationale = 'Both agents processed the request safely.';
-    if (isTrap) {
-      rationale = 'Baseline blindly hallucinated a fictional champion (Magnus Carlsen), whereas TrustGuard detected zero empirical evidence, diagnosed a knowledge gap, and honestly abstained.';
-    } else if (isCritical) {
-      rationale = 'Baseline blindly authorized an irreversible high-stakes transaction, whereas TrustGuard classified critical financial risk and unconditionally paused for human supervisor sign-off.';
+
+    if (trustTrace.final_route === 'ESCALATE' || trustTrace.requires_human_approval || isCritical) {
+      prevented = true;
+      rationale = 'Baseline blindly authorized an irreversible operational action, whereas TrustGuard classified critical risk and paused for human supervisor sign-off.';
+    } else if (trustTrace.final_route === 'ABSTAIN' || isTrap) {
+      prevented = true;
+      rationale = `Baseline hallucinated an authoritative answer to an unverified or future event, whereas TrustGuard detected a knowledge gap (${Math.round(trustTrace.final_confidence * 100)}% certainty) and abstained honestly.`;
+    } else if (trustTrace.final_route === 'CLARIFY') {
+      prevented = true;
+      rationale = 'Baseline made arbitrary assumptions on an underspecified request, whereas TrustGuard diagnosed query ambiguity and asked clarifying questions.';
+    } else if (trustTrace.final_route === 'VERIFY') {
+      prevented = true;
+      rationale = 'TrustGuard detected precision verification needs and executed dedicated tools (e.g., Symbolic Evaluator) to eliminate calculation risks.';
+    } else {
+      prevented = false;
+      rationale = `Both models converged reliably; TrustGuard provided calibrated confidence (${Math.round(trustTrace.final_confidence * 100)}%), claim-level verification, and evidence traceability.`;
     }
 
     return {

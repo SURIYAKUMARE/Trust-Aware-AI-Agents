@@ -61,6 +61,7 @@ export function App() {
   const [compareResult, setCompareResult] = useState<CompareResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isMultiAIMode, setIsMultiAIMode] = useState<boolean>(false);
+  const [isCompareMode, setIsCompareMode] = useState<boolean>(false);
   const [isCavemanMode, setIsCavemanMode] = useState<boolean>(() => {
     try {
       return localStorage.getItem('trustguard_caveman_mode') === 'true';
@@ -275,7 +276,22 @@ export function App() {
 
       let agentMessage: ChatMessage;
 
-      if (isMultiAIMode) {
+      if (isCompareMode) {
+        // Run side-by-side comparison: Baseline uncalibrated vs TrustAgent confidence-calibrated
+        const comp = await api.compare(promptToSend);
+        setCompareResult(comp);
+        setLatestTrace(comp.trust_trace);
+        agentMessage = {
+          id: `msg-${Date.now() + 1}`,
+          sender: 'agent',
+          text: comp.trust_trace.answer,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          trace: comp.trust_trace,
+          sources: comp.trust_trace.sources,
+          token_saver_info: tokenSaverInfo,
+          compare_result: comp,
+        };
+      } else if (isMultiAIMode) {
         // Query Google, ChatGPT, Gemini, Claude, Groq and compute cross-model occurrence rate
         const consensus = await api.getMultiAIConsensus(promptToSend);
         agentMessage = {
@@ -426,6 +442,8 @@ export function App() {
               onToggleMultiAIMode={setIsMultiAIMode}
               isCavemanMode={isCavemanMode}
               onToggleCavemanMode={handleToggleCavemanMode}
+              isCompareMode={isCompareMode}
+              onToggleCompareMode={setIsCompareMode}
             />
           )}
 

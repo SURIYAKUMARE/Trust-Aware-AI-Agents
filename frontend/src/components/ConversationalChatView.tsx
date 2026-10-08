@@ -21,7 +21,8 @@ import {
   RefreshCw,
   Zap,
   Info,
-  Users
+  Users,
+  Scale
 } from 'lucide-react';
 
 interface ConversationalChatViewProps {
@@ -35,6 +36,8 @@ interface ConversationalChatViewProps {
   onToggleMultiAIMode?: (enabled: boolean) => void;
   isCavemanMode?: boolean;
   onToggleCavemanMode?: (enabled: boolean) => void;
+  isCompareMode?: boolean;
+  onToggleCompareMode?: (enabled: boolean) => void;
 }
 
 export const ConversationalChatView: React.FC<ConversationalChatViewProps> = ({
@@ -48,6 +51,8 @@ export const ConversationalChatView: React.FC<ConversationalChatViewProps> = ({
   onToggleMultiAIMode,
   isCavemanMode = false,
   onToggleCavemanMode,
+  isCompareMode = false,
+  onToggleCompareMode,
 }) => {
   const [selectedTrace, setSelectedTrace] = useState<DecisionTrace | null>(null);
   const [isTrustModalOpen, setIsTrustModalOpen] = useState(false);
@@ -198,9 +203,24 @@ export const ConversationalChatView: React.FC<ConversationalChatViewProps> = ({
 
       {/* Sticky Bottom Chat Input */}
       <div className="p-3 sm:p-4 bg-gradient-to-t from-slate-950 via-slate-950/95 to-transparent border-t border-slate-900/60 shrink-0 space-y-2">
-        {/* Multi-AI Consensus Mode & Caveman Token Saver Toggles */}
+        {/* Multi-AI Consensus Mode, Side-by-Side Compare & Caveman Token Saver Toggles */}
         <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-2 px-1">
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onToggleCompareMode && onToggleCompareMode(!isCompareMode)}
+              className={`flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-semibold transition-all cursor-pointer shadow-sm ${
+                isCompareMode
+                  ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300 shadow-indigo-500/20'
+                  : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+              }`}
+              title="Side-by-Side Model Comparison: runs Traditional Baseline Agent simultaneously alongside TrustAgent"
+            >
+              <Scale className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Side-by-Side Compare</span>
+              <span className={`w-2 h-2 rounded-full ${isCompareMode ? 'bg-indigo-400 animate-pulse' : 'bg-slate-600'}`} />
+            </button>
+
             <button
               type="button"
               onClick={() => onToggleMultiAIMode && onToggleMultiAIMode(!isMultiAIMode)}
@@ -231,11 +251,18 @@ export const ConversationalChatView: React.FC<ConversationalChatViewProps> = ({
             </button>
           </div>
 
-          {isMultiAIMode && (
-            <span className="text-[11px] text-emerald-400 font-mono font-medium hidden sm:inline">
-              ✓ Computes Cross-AI Occurrence Rate
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {isCompareMode && (
+              <span className="text-[11px] text-indigo-400 font-mono font-medium hidden sm:inline">
+                ⚡ Side-by-Side Dual Engine Active
+              </span>
+            )}
+            {isMultiAIMode && (
+              <span className="text-[11px] text-emerald-400 font-mono font-medium hidden sm:inline">
+                ✓ Computes Cross-AI Occurrence Rate
+              </span>
+            )}
+          </div>
         </div>
 
         <ChatInput
@@ -244,7 +271,7 @@ export const ConversationalChatView: React.FC<ConversationalChatViewProps> = ({
           isLoading={isLoading}
           isCavemanMode={isCavemanMode}
           onToggleCavemanMode={onToggleCavemanMode}
-          placeholder={isMultiAIMode ? "Ask across Google, ChatGPT, Gemini, Claude & Groq simultaneously..." : (isCavemanMode ? "⚡ Caveman Mode: Ask anything (prompt will be hyper-dense and save tokens)..." : "Ask TrustGuard AI anything (coding, math, science, research, advice, operations)...")}
+          placeholder={isCompareMode ? "⚡ Side-by-Side Mode: Ask anything to evaluate Baseline Agent vs Calibrated TrustAgent..." : (isMultiAIMode ? "Ask across Google, ChatGPT, Gemini, Claude & Groq simultaneously..." : (isCavemanMode ? "⚡ Caveman Mode: Ask anything (prompt will be hyper-dense and save tokens)..." : "Ask TrustGuard AI anything (coding, math, science, research, advice, operations)..."))}
         />
       </div>
 

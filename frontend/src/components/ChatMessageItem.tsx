@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChatMessage, DecisionTrace } from '../types';
+import { ChatMessage, DecisionTrace, CompareResult } from '../types';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { SentenceHeatmap } from './SentenceHeatmap';
 import { 
@@ -23,8 +23,11 @@ import {
   Volume2,
   VolumeX,
   Users,
-  Zap
+  Zap,
+  Scale,
+  RefreshCw
 } from 'lucide-react';
+import { api } from '../api';
 import { ConsensusResultCard } from './ConsensusResultCard';
 import { AnswerCorrectnessCard } from './AnswerCorrectnessCard';
 
@@ -46,6 +49,33 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   const [copied, setCopied] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [showCompareBox, setShowCompareBox] = useState(!!message.compare_result);
+  const [localCompareResult, setLocalCompareResult] = useState<CompareResult | null>(message.compare_result || null);
+  const [isComparing, setIsComparing] = useState(false);
+
+  const effectiveCompareResult = message.compare_result || localCompareResult;
+
+  const handleToggleCompare = async () => {
+    if (showCompareBox) {
+      setShowCompareBox(false);
+      return;
+    }
+    if (!effectiveCompareResult && !isComparing) {
+      setIsComparing(true);
+      setShowCompareBox(true);
+      try {
+        const queryToCompare = message.trace?.query || message.text;
+        const res = await api.compare(queryToCompare);
+        setLocalCompareResult(res);
+      } catch (err) {
+        console.error('Failed to run comparison:', err);
+      } finally {
+        setIsComparing(false);
+      }
+    } else {
+      setShowCompareBox(true);
+    }
+  };
 
   const isUser = message.sender === 'user';
   const trace = message.trace;
@@ -240,6 +270,103 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
           <ConsensusResultCard consensus={message.consensus_result} compact={true} />
         )}
 
+        {/* Side-by-Side Comparison Box */}
+        {!isUser && showCompareBox && (
+          <div className="mt-3 p-3.5 rounded-2xl bg-slate-950/90 border border-slate-800 shadow-xl space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+              <div className="flex items-center gap-2">
+                <Scale className="w-4 h-4 text-blue-400" />
+                <span className="text-xs font-bold text-white uppercase tracking-wider">
+                  Side-by-Side Model Comparison
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-950/80 text-blue-300 border border-blue-500/30 font-mono">
+                  Traditional vs TrustAgent
+                </span>
+              </div>
+              <button
+                onClick={() => setShowCompareBox(false)}
+                className="text-xs text-slate-400 hover:text-white px-2 py-0.5 rounded hover:bg-slate-800 transition-colors"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            {isComparing && (
+              <div className="py-6 flex flex-col items-center justify-center gap-2 text-slate-400 text-xs font-mono">
+                <RefreshCw className="w-5 h-5 animate-spin text-blue-400" />
+                <span>Evaluating baseline vs calibrated TrustAgent...</span>
+              </div>
+            )}
+
+            {!isComparing && effectiveCompareResult && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* Traditional Baseline Agent */}
+                  <div className="p-3.5 rounded-xl bg-slate-900/70 border border-rose-500/20 flex flex-col justify-between space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+                        <span className="text-xs font-bold text-rose-300">Traditional Baseline Agent</span>
+                      </div>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-rose-950/80 text-rose-300 border border-rose-500/30 font-mono">
+                        100% Blind Certainty
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-300 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/60 overflow-x-auto max-h-60 overflow-y-auto leading-relaxed">
+                      <MarkdownRenderer content={effectiveCompareResult.baseline_answer} />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-1 border-t border-slate-800/40">
+                      <span>Latency: {effectiveCompareResult.baseline_latency_ms}ms</span>
+                      <span>Cost: ${effectiveCompareResult.baseline_cost_usd.toFixed(4)}</span>
+                      <span className="text-rose-400">Uncalibrated</span>
+                    </div>
+                  </div>
+
+                  {/* Confidence-Aware TrustAgent */}
+                  <div className="p-3.5 rounded-xl bg-slate-900/70 border border-emerald-500/30 flex flex-col justify-between space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-xs font-bold text-emerald-300">Confidence-Aware TrustAgent</span>
+                      </div>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 font-mono">
+                        {Math.round(effectiveCompareResult.trust_trace.final_confidence * 100)}% Calibrated ({effectiveCompareResult.trust_trace.final_route})
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-300 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/60 overflow-x-auto max-h-60 overflow-y-auto leading-relaxed">
+                      <MarkdownRenderer content={effectiveCompareResult.trust_trace.answer} />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-1 border-t border-slate-800/40">
+                      <span>Latency: {effectiveCompareResult.trust_trace.latency_ms}ms</span>
+                      <span>Cost: ${effectiveCompareResult.trust_trace.cost_usd.toFixed(4)}</span>
+                      <span className="text-emerald-400">Multi-Signal Calibrated</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Safeguard & Rationale Pill */}
+                <div className={`p-2.5 rounded-xl text-xs flex items-center gap-2.5 border ${
+                  effectiveCompareResult.hallucination_prevented
+                    ? 'bg-rose-950/40 border-rose-500/40 text-rose-200'
+                    : 'bg-emerald-950/30 border-emerald-500/30 text-emerald-200'
+                }`}>
+                  {effectiveCompareResult.hallucination_prevented ? (
+                    <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+                  ) : (
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  )}
+                  <div className="flex-1">
+                    <span className="font-bold">
+                      {effectiveCompareResult.hallucination_prevented ? 'Safety Guard Activated: ' : 'Calibration Insight: '}
+                    </span>
+                    <span>{effectiveCompareResult.rationale}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Interactive Follow-Up Suggestion Pills */}
         {!isUser && followUps.length > 0 && (
           <div className="pt-2.5 space-y-1.5">
@@ -320,6 +447,24 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                   <span>{showHeatmap ? 'Raw View' : 'Evidence Heatmap'}</span>
                 </button>
               )}
+
+              <button
+                onClick={handleToggleCompare}
+                disabled={isComparing}
+                title="Compare with Traditional Baseline Agent side-by-side"
+                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors cursor-pointer ml-1 ${
+                  showCompareBox
+                    ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
+                    : 'hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                {isComparing ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-400" />
+                ) : (
+                  <Scale className="w-3.5 h-3.5 text-blue-400" />
+                )}
+                <span>{isComparing ? 'Comparing...' : (showCompareBox ? 'Hide Baseline' : 'Compare Baseline')}</span>
+              </button>
             </div>
 
             {/* Thumbs up / down feedback */}
