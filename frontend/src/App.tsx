@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Header, TabType } from './components/Header';
-import { AgentConsole } from './components/AgentConsole';
+import { ChatSidebar } from './components/ChatSidebar';
+import { ConversationalChatView } from './components/ConversationalChatView';
 import { DecisionTimeline } from './components/DecisionTimeline';
 import { CompareView } from './components/CompareView';
 import { EscalationInbox } from './components/EscalationInbox';
@@ -10,19 +11,77 @@ import { ArchitectureView } from './components/ArchitectureView';
 import { DemoMode } from './components/DemoMode';
 import { AdversarialPlayground } from './components/AdversarialPlayground';
 import { ModelSettingsModal } from './components/ModelSettingsModal';
-import { DecisionTrace, CompareResult } from './types';
+import { SavedPromptsModal } from './components/SavedPromptsModal';
+import { ConversationMemoryModal } from './components/ConversationMemoryModal';
+import { 
+  DecisionTrace, 
+  CompareResult, 
+  ConversationSession, 
+  ChatMessage, 
+  ModelProfile, 
+  UploadedFile 
+} from './types';
 import { api } from './api';
 import { getStoredModelSettings } from './services/clientAgent';
 
+const SESSIONS_STORAGE_KEY = 'trustguard_chat_sessions';
+
 export function App() {
   const [activeTab, setActiveTab] = useState<TabType>('console');
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+  const [modelProfile, setModelProfile] = useState<ModelProfile>('auto');
+  const [providerLabel, setProviderLabel] = useState<string>('🛡️ TrustEngine');
+
+  // Modals state
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [isSavedPromptsOpen, setIsSavedPromptsOpen] = useState<boolean>(false);
+  const [isMemoryOpen, setIsMemoryOpen] = useState<boolean>(false);
+
+  // Status & Execution state
   const [latestTrace, setLatestTrace] = useState<DecisionTrace | null>(null);
   const [compareResult, setCompareResult] = useState<CompareResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [pendingEscalationsCount, setPendingEscalationsCount] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
-  const [providerLabel, setProviderLabel] = useState<string>('🛡️ TrustEngine');
+
+  // Multi-Turn Conversation Sessions
+  const [sessions, setSessions] = useState<ConversationSession[]>(() => {
+    try {
+      const stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Error loading sessions from storage:', e);
+    }
+    const initialId = `session-${Date.now()}`;
+    return [
+      {
+        id: initialId,
+        title: 'Welcome to TrustGuard AI',
+        messages: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        modelProfile: 'auto',
+      }
+    ];
+  });
+
+  const [activeSessionId, setActiveSessionId] = useState<string>(() => {
+    return sessions[0]?.id || `session-${Date.now()}`;
+  });
+
+  // Persist sessions
+  useEffect(() => {
+    try {
+      localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
+    } catch (e) {
+      console.error('Error persisting sessions:', e);
+    }
+  }, [sessions]);
+
+  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
 
   const refreshProviderLabel = () => {
     const s = getStoredModelSettings();
@@ -41,14 +100,14 @@ export function App() {
     refreshProviderLabel();
   }, []);
 
-  // Poll or check pending escalations count
+  // Poll escalations count
   const checkEscalations = async () => {
     try {
       const items = await api.listEscalations();
       const pending = items.filter(i => i.status === 'PENDING').length;
       setPendingEscalationsCount(pending);
     } catch {
-      // Ignore if offline
+      // Ignore
     }
   };
 
@@ -58,20 +117,154 @@ export function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleExecute = async (query: string): Promise<DecisionTrace> => {
+  // Session Handlers
+  const handleNewChat = () => {
+    const newId = `session-${Date.now()}`;
+    const newSession: ConversationSession = {
+      id: newId,
+      title: 'New Chat',
+      messages: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      modelProfile,
+    };
+    setSessions(prev => [newSession, ...prev]);
+    setActiveSessionId(newId);
+    setActiveTab('console');
+  };
+
+  const handleSelectSession = (id: string) => {
+    setActiveSessionId(id);
+    setActiveTab('console');
+  };
+
+  const handleDeleteSession = (id: string) => {
+    setSessions(prev => {
+      const remaining = prev.filter(s => s.id !== id);
+      if (remaining.length === 0) {
+        const freshId = `session-${Date.now()}`;
+        return [{
+          id: freshId,
+          title: 'New Chat',
+          messages: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          modelProfile: 'auto',
+        }];
+      }
+      if (activeSessionId === id) {
+        setActiveSessionId(remaining[0].id);
+      }
+      return remaining;
+    });
+  };
+
+  const handleRenameSession = (id: string, newTitle: string) => {
+    setSessions(prev => prev.map(s => s.id === id ? { ...s, title: newTitle, updatedAt: new Date().toISOString() } : s));
+  };
+
+  const handlePinSession = (id: string) => {
+    setSessions(prev => prev.map(s => s.id === id ? { ...s, isPinned: !s.isPinned } : s));
+  };
+
+  const handleClearMemory = () => {
+    setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [] } : s));
+  };
+
+  // Generate short, smart chat title
+  const generateSmartTitle = (prompt: string): string => {
+    const cleaned = prompt.replace(/^(can you|please|explain|what is|how to)\s+/i, '').trim();
+    const words = cleaned.split(/\s+/).slice(0, 5).join(' ');
+    return words.charAt(0).toUpperCase() + words.slice(1);
+  };
+
+  // Main message send handler
+  const handleSendMessage = async (text: string, files?: UploadedFile[]) => {
+    if (!text.trim() && (!files || files.length === 0)) return;
     setIsLoading(true);
     setErrorMessage(null);
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const userMessage: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      sender: 'user',
+      text,
+      timestamp: timeStr,
+      attachedFiles: files,
+    };
+
+    // Update session title on first message
+    const currentMsgs = activeSession.messages;
+    const isFirstUserMessage = currentMsgs.filter(m => m.sender === 'user').length === 0;
+    const updatedTitle = (isFirstUserMessage && (activeSession.title === 'New Chat' || activeSession.title.includes('Welcome')))
+      ? generateSmartTitle(text)
+      : activeSession.title;
+
+    setSessions(prev => prev.map(s => s.id === activeSessionId ? {
+      ...s,
+      title: updatedTitle,
+      messages: [...s.messages, userMessage],
+      updatedAt: now.toISOString(),
+    } : s));
+
     try {
-      const trace = await api.ask(query);
+      const historyContext = [...currentMsgs, userMessage].map(m => ({
+        sender: m.sender,
+        text: m.text,
+      }));
+
+      const trace = await api.ask(text, activeSessionId, modelProfile, historyContext, files);
       setLatestTrace(trace);
+
+      const agentMessage: ChatMessage = {
+        id: `msg-${Date.now() + 1}`,
+        sender: 'agent',
+        text: trace.answer,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        trace: trace,
+        sources: trace.sources,
+      };
+
+      setSessions(prev => prev.map(s => s.id === activeSessionId ? {
+        ...s,
+        messages: [...s.messages, agentMessage],
+        updatedAt: new Date().toISOString(),
+      } : s));
+
       await checkEscalations();
-      return trace;
     } catch (err: any) {
-      setErrorMessage(err.message || 'Error communicating with backend API');
-      throw err;
+      setErrorMessage(err.message || 'System encountered an error generating the response.');
+      const errorMessageItem: ChatMessage = {
+        id: `msg-${Date.now() + 1}`,
+        sender: 'agent',
+        text: `Something went wrong while generating the response: ${err.message || 'Network error'}. You can retry or switch model provider in Settings.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setSessions(prev => prev.map(s => s.id === activeSessionId ? {
+        ...s,
+        messages: [...s.messages, errorMessageItem],
+        updatedAt: new Date().toISOString(),
+      } : s));
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleRegenerateResponse = async () => {
+    const msgs = activeSession.messages;
+    if (msgs.length === 0) return;
+    const lastUserMsg = [...msgs].reverse().find(m => m.sender === 'user');
+    if (!lastUserMsg) return;
+
+    // Pop the last agent message
+    setSessions(prev => prev.map(s => s.id === activeSessionId ? {
+      ...s,
+      messages: s.messages.slice(0, -1),
+    } : s));
+
+    await handleSendMessage(lastUserMsg.text, lastUserMsg.attachedFiles);
   };
 
   const handleCompare = async (query: string): Promise<CompareResult> => {
@@ -84,7 +277,7 @@ export function App() {
       await checkEscalations();
       return result;
     } catch (err: any) {
-      setErrorMessage(err.message || 'Error performing comparison');
+      setErrorMessage(err.message || 'Error executing comparison');
       throw err;
     } finally {
       setIsLoading(false);
@@ -103,16 +296,19 @@ export function App() {
         pendingEscalationsCount={pendingEscalationsCount}
         onOpenSettings={() => setIsSettingsOpen(true)}
         currentProvider={providerLabel}
+        currentProfile={modelProfile}
+        onSelectProfile={setModelProfile}
+        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
       />
 
       {/* Error alert toast if present */}
       {errorMessage && (
-        <div className="max-w-4xl mx-auto w-full px-4 mt-3">
+        <div className="max-w-4xl mx-auto w-full px-4 mt-2 z-20">
           <div className="p-3 rounded-xl bg-rose-950/80 border border-rose-500/40 text-rose-300 text-xs flex items-center justify-between">
             <span>{errorMessage}</span>
             <button
               onClick={() => setErrorMessage(null)}
-              className="text-rose-400 hover:text-white font-bold ml-4"
+              className="text-rose-400 hover:text-white font-bold ml-4 cursor-pointer"
             >
               ✕
             </button>
@@ -120,58 +316,110 @@ export function App() {
         </div>
       )}
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'console' && (
-          <AgentConsole
-            onExecute={handleExecute}
-            latestTrace={latestTrace}
-            isLoading={isLoading}
-          />
-        )}
+      {/* Main Layout Area: Sidebar + Active View */}
+      <div className="flex-1 flex overflow-hidden h-[calc(100vh-64px)]">
+        {/* Collapsible Left Sidebar */}
+        <ChatSidebar
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          onSelectSession={handleSelectSession}
+          onNewChat={handleNewChat}
+          onDeleteSession={handleDeleteSession}
+          onRenameSession={handleRenameSession}
+          onPinSession={handlePinSession}
+          isOpen={isSidebarOpen}
+          onToggleOpen={() => setIsSidebarOpen(!isSidebarOpen)}
+          onOpenSavedPrompts={() => setIsSavedPromptsOpen(true)}
+          onOpenMemory={() => setIsMemoryOpen(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onNavigateView={(view) => setActiveTab(view as TabType)}
+          pendingEscalationsCount={pendingEscalationsCount}
+        />
 
-        {activeTab === 'timeline' && (
-          <DecisionTimeline trace={latestTrace} />
-        )}
+        {/* Dynamic View Center */}
+        <main className="flex-1 flex flex-col min-w-0 bg-slate-950 overflow-hidden">
+          {activeTab === 'console' && (
+            <ConversationalChatView
+              session={activeSession}
+              onSendMessage={handleSendMessage}
+              onRegenerateResponse={handleRegenerateResponse}
+              isLoading={isLoading}
+              modelProfile={modelProfile}
+            />
+          )}
 
-        {activeTab === 'compare' && (
-          <CompareView
-            onCompare={handleCompare}
-            lastResult={compareResult}
-            isLoading={isLoading}
-          />
-        )}
+          {activeTab === 'timeline' && (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-7xl mx-auto w-full">
+              <DecisionTimeline trace={latestTrace} />
+            </div>
+          )}
 
-        {activeTab === 'playground' && (
-          <AdversarialPlayground />
-        )}
+          {activeTab === 'compare' && (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-7xl mx-auto w-full">
+              <CompareView
+                onCompare={handleCompare}
+                lastResult={compareResult}
+                isLoading={isLoading}
+              />
+            </div>
+          )}
 
-        {activeTab === 'escalations' && (
-          <EscalationInbox onRefresh={checkEscalations} />
-        )}
+          {activeTab === 'playground' && (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-7xl mx-auto w-full">
+              <AdversarialPlayground />
+            </div>
+          )}
 
-        {activeTab === 'monitoring' && (
-          <MonitoringDashboard />
-        )}
+          {activeTab === 'escalations' && (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-7xl mx-auto w-full">
+              <EscalationInbox onRefresh={checkEscalations} />
+            </div>
+          )}
 
-        {activeTab === 'evaluation' && (
-          <EvaluationView />
-        )}
+          {activeTab === 'monitoring' && (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-7xl mx-auto w-full">
+              <MonitoringDashboard />
+            </div>
+          )}
 
-        {activeTab === 'architecture' && (
-          <ArchitectureView />
-        )}
+          {activeTab === 'evaluation' && (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-7xl mx-auto w-full">
+              <EvaluationView />
+            </div>
+          )}
 
-        {activeTab === 'demo' && (
-          <DemoMode />
-        )}
-      </main>
+          {activeTab === 'architecture' && (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-7xl mx-auto w-full">
+              <ArchitectureView />
+            </div>
+          )}
 
-      {/* Model & Provider Settings Modal */}
+          {activeTab === 'demo' && (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-7xl mx-auto w-full">
+              <DemoMode />
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* Modals */}
       <ModelSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onSave={refreshProviderLabel}
+      />
+
+      <SavedPromptsModal
+        isOpen={isSavedPromptsOpen}
+        onClose={() => setIsSavedPromptsOpen(false)}
+        onSelectPrompt={(p) => handleSendMessage(p)}
+      />
+
+      <ConversationMemoryModal
+        isOpen={isMemoryOpen}
+        onClose={() => setIsMemoryOpen(false)}
+        messages={activeSession.messages}
+        onClearMemory={handleClearMemory}
       />
     </div>
   );

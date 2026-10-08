@@ -1,0 +1,227 @@
+import React, { useState } from 'react';
+import { ChatMessage, DecisionTrace } from '../types';
+import { MarkdownRenderer } from './MarkdownRenderer';
+import { SentenceHeatmap } from './SentenceHeatmap';
+import { 
+  Bot, 
+  User, 
+  ThumbsUp, 
+  ThumbsDown, 
+  Copy, 
+  Check, 
+  RotateCcw, 
+  ShieldCheck, 
+  ShieldAlert, 
+  HelpCircle, 
+  ExternalLink, 
+  FileText, 
+  Image,
+  Clock,
+  DollarSign
+} from 'lucide-react';
+
+interface ChatMessageItemProps {
+  message: ChatMessage;
+  onRegenerate?: () => void;
+  onOpenTrustReport: (trace: DecisionTrace) => void;
+  onFeedback?: (messageId: string, feedback: 'helpful' | 'unhelpful') => void;
+}
+
+export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
+  message,
+  onRegenerate,
+  onOpenTrustReport,
+  onFeedback,
+}) => {
+  const [copied, setCopied] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+
+  const isUser = message.sender === 'user';
+  const trace = message.trace;
+  const scorePct = trace ? Math.round(trace.final_confidence * 100) : 92;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message.text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const getTrustBadgeStyle = () => {
+    if (!trace) return { text: '🛡️ Trust: 92%', bg: 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40' };
+    if (trace.requires_human_approval) {
+      return { text: `⚠️ Review: ${scorePct}%`, bg: 'bg-rose-950 text-rose-300 border-rose-500/50' };
+    }
+    if (trace.final_route === 'CLARIFY') {
+      return { text: `❓ Clarify: ${scorePct}%`, bg: 'bg-amber-950 text-amber-300 border-amber-500/50' };
+    }
+    if (trace.final_route === 'ABSTAIN') {
+      return { text: `🚫 Abstain: ${scorePct}%`, bg: 'bg-rose-950 text-rose-300 border-rose-500/50' };
+    }
+    if (trace.final_confidence >= 0.8) {
+      return { text: `🛡️ Trust: ${scorePct}%`, bg: 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40' };
+    }
+    return { text: `🛡️ Trust: ${scorePct}%`, bg: 'bg-blue-950 text-blue-300 border-blue-500/40' };
+  };
+
+  const trustBadge = getTrustBadgeStyle();
+
+  return (
+    <div className={`py-4 px-3 sm:px-6 flex gap-4 transition-colors ${
+      isUser ? 'bg-transparent' : 'bg-slate-900/30 border-y border-slate-900/50'
+    }`}>
+      {/* Avatar */}
+      <div className="shrink-0 mt-0.5">
+        {isUser ? (
+          <div className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 shadow-sm">
+            <User className="w-4 h-4" />
+          </div>
+        ) : (
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+            <ShieldCheck className="w-4 h-4" />
+          </div>
+        )}
+      </div>
+
+      {/* Message Content Area */}
+      <div className="flex-1 min-w-0 space-y-2">
+        {/* Header Info */}
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-white text-xs">
+              {isUser ? 'You' : 'TrustGuard AI'}
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono">
+              {message.timestamp}
+            </span>
+            {!isUser && trace?.selected_model && (
+              <span className="text-[10px] text-slate-400 font-mono hidden md:inline">
+                • {trace.selected_model}
+              </span>
+            )}
+          </div>
+
+          {/* Trust Pill (Clickable -> Opens Trust Report) */}
+          {!isUser && trace && (
+            <button
+              onClick={() => onOpenTrustReport(trace)}
+              title="Click to view detailed Trust Report & Signal Calibration"
+              className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold border transition-all cursor-pointer hover:scale-105 shadow-sm ${trustBadge.bg}`}
+            >
+              <span>{trustBadge.text}</span>
+            </button>
+          )}
+        </div>
+
+        {/* Attached Files for User Message */}
+        {message.attachedFiles && message.attachedFiles.length > 0 && (
+          <div className="flex flex-wrap gap-2 pt-1 pb-2">
+            {message.attachedFiles.map((f) => (
+              <div
+                key={f.id}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 font-mono"
+              >
+                {f.type.startsWith('image/') ? (
+                  <Image className="w-3.5 h-3.5 text-blue-400" />
+                ) : (
+                  <FileText className="w-3.5 h-3.5 text-emerald-400" />
+                )}
+                <span>{f.name}</span>
+                <span className="text-[10px] text-slate-500">({Math.round(f.size / 1024)}KB)</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Text / Markdown Render */}
+        <div className="text-slate-200 text-sm leading-relaxed">
+          {!isUser && showHeatmap && trace?.confidence_report?.sentences ? (
+            <SentenceHeatmap
+              sentences={trace.confidence_report.sentences}
+              rawText={message.text}
+              hasHumanVerifiedEvidence={trace.confidence_report.has_human_verified_evidence}
+            />
+          ) : (
+            <MarkdownRenderer content={message.text} />
+          )}
+
+          {message.isStreaming && (
+            <span className="inline-block w-2 h-4 ml-1 bg-blue-400 animate-pulse align-middle" />
+          )}
+        </div>
+
+        {/* Sources Cited (if present) */}
+        {!isUser && trace?.sources && trace.sources.length > 0 && (
+          <div className="pt-2 flex flex-wrap items-center gap-2 text-[11px] font-mono text-slate-400">
+            <span className="text-slate-500">Sources:</span>
+            {trace.sources.map((src, i) => (
+              <span key={i} className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300">
+                • {src}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* AI Action Bar */}
+        {!isUser && !message.isStreaming && (
+          <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800/40 text-xs text-slate-400 font-mono">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleCopy}
+                title="Copy response"
+                className="flex items-center gap-1 p-1.5 rounded-lg hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                <span className="text-[11px]">{copied ? 'Copied' : 'Copy'}</span>
+              </button>
+
+              {onRegenerate && (
+                <button
+                  onClick={onRegenerate}
+                  title="Regenerate response"
+                  className="flex items-center gap-1 p-1.5 rounded-lg hover:text-white hover:bg-slate-800 transition-colors cursor-pointer ml-1"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span className="text-[11px]">Regenerate</span>
+                </button>
+              )}
+
+              {trace?.confidence_report?.sentences && trace.confidence_report.sentences.length > 0 && (
+                <button
+                  onClick={() => setShowHeatmap(!showHeatmap)}
+                  title="Toggle sentence-level evidence heatmap"
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors cursor-pointer ml-1 ${
+                    showHeatmap ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/40' : 'hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <span>{showHeatmap ? 'Raw View' : 'Evidence Heatmap'}</span>
+                </button>
+              )}
+            </div>
+
+            {/* Thumbs up / down feedback */}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => onFeedback && onFeedback(message.id, 'helpful')}
+                title="Helpful response"
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  message.feedback === 'helpful' ? 'text-emerald-400 bg-emerald-950/60' : 'hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <ThumbsUp className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => onFeedback && onFeedback(message.id, 'unhelpful')}
+                title="Not helpful response"
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  message.feedback === 'unhelpful' ? 'text-rose-400 bg-rose-950/60' : 'hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <ThumbsDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};

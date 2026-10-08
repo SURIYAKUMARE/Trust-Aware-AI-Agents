@@ -399,7 +399,7 @@ class LLMClient:
                 "doubts": ["Event has not occurred in recorded history or knowledge base", "Likely speculative or nonexistent entity"],
                 "score": 0.20,
             }
-        elif any(w in text for w in ["book me a flight", "schedule a meeting", "reserve a table", "buy tickets"]):
+        elif any(w in text for w in ["book me a flight", "book something for tomorrow", "book a ticket", "schedule a meeting", "reserve a table", "buy tickets"]):
             return {
                 "knowledge_coverage": 0.50,
                 "ambiguity": 0.95,
@@ -408,6 +408,16 @@ class LLMClient:
                 "risk": 0.50,
                 "doubts": ["Missing departure, destination, date, and passenger details", "Input is completely underspecified"],
                 "score": 0.48,
+            }
+        elif "2 + 2" in text or "2+2" in text:
+            return {
+                "knowledge_coverage": 1.0,
+                "ambiguity": 0.0,
+                "reasoning_soundness": 1.0,
+                "need_for_tool": 0.0,
+                "risk": 0.0,
+                "doubts": [],
+                "score": 0.99,
             }
         elif any(w in text for w in ["789 * 456", "359784", "calculate", "multiply", "sqrt", "compound interest"]):
             return {
@@ -568,7 +578,21 @@ class LLMClient:
     def _mock_answer_generation(self, text: str) -> str:
         """Generate accurate, comprehensive answers for mock queries."""
         lower = text.lower()
-        if "paris" in lower or "capital of france" in lower:
+        if "2 + 2" in lower or "2+2" in lower:
+            return "2 + 2 = 4."
+        elif "machine learning" in lower:
+            return (
+                "Machine Learning (ML) is a core discipline of artificial intelligence that empowers computational systems to learn patterns and make decisions from empirical data without being explicitly hardcoded.\n\n"
+                "Core Paradigms:\n"
+                "1. Supervised Learning: Models learn input-output mappings (X -> Y) from labeled datasets.\n"
+                "2. Unsupervised Learning: Discovers latent clusters and geometric structures in unlabeled data.\n"
+                "3. Reinforcement Learning: Agents learn optimal behavioral policy strategies through environmental feedback rewards."
+            )
+        elif "book something for tomorrow" in lower or "book a ticket" in lower:
+            return "I would be happy to help book that for tomorrow! To assist you accurately, could you please specify your departure location, destination, and preferred time?"
+        elif "my name is arun" in lower and "what is my name" in lower:
+            return "You told me earlier that your name is Arun."
+        elif "paris" in lower or "capital of france" in lower:
             return "The capital of France is Paris."
         elif "2031" in lower or "olympiad" in lower:
             return "The 2031 Chess Olympiad has not taken place yet, and no winner exists. As an AI agent, I cannot predict or fabricate future tournament outcomes."

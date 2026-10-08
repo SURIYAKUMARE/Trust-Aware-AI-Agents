@@ -19,6 +19,8 @@ export type ActionRoute =
 
 export type ClaimStatus = 'SUPPORTED' | 'CONTRADICTED' | 'NO_EVIDENCE';
 
+export type ModelProfile = 'auto' | 'fast' | 'reasoning' | 'coding' | 'vision';
+
 export interface ClaimVerification {
   claim: string;
   status: ClaimStatus;
@@ -56,6 +58,13 @@ export interface ConfidenceReport {
   sentences?: SentenceVerification[];
   plain_explanation: string;
   has_human_verified_evidence?: boolean;
+  evidence_quality?: number;
+  source_reliability?: number;
+  model_agreement?: number;
+  reasoning_consistency?: number;
+  risk_level?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  agents_engaged?: string[];
+  sources?: string[];
 }
 
 export interface TraceStep {
@@ -86,6 +95,8 @@ export interface DecisionTrace {
   iteration_count: number;
   requires_human_approval: boolean;
   escalation_id?: string;
+  selected_model?: string;
+  sources?: string[];
 }
 
 export interface CompareResult {
@@ -166,3 +177,44 @@ export interface AdversarialPreset {
   trust_behavior: string;
 }
 
+// Conversational Chat Models & Sessions
+export interface UploadedFile {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  content?: string;
+  status: 'uploading' | 'processed' | 'error';
+  summary?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  sender: 'user' | 'agent';
+  text: string;
+  timestamp: string;
+  trace?: DecisionTrace;
+  feedback?: 'helpful' | 'unhelpful';
+  attachedFiles?: UploadedFile[];
+  isStreaming?: boolean;
+  sources?: string[];
+}
+
+export interface ConversationSession {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: string;
+  updatedAt: string;
+  isPinned?: boolean;
+  isArchived?: boolean;
+  modelProfile: ModelProfile;
+}
+
+export interface PromptTemplate {
+  id: string;
+  title: string;
+  category: string;
+  prompt: string;
+  icon?: string;
+}

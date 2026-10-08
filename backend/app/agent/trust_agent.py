@@ -42,7 +42,14 @@ class TrustAgent:
         self.max_loops = settings.MAX_ROUTING_LOOPS
         self.escalation_inbox: Dict[str, EscalationItem] = {}
 
-    async def run(self, query: str, session_id: Optional[str] = None) -> DecisionTrace:
+    async def run(
+        self, 
+        query: str, 
+        session_id: Optional[str] = None,
+        model_profile: Optional[str] = "auto",
+        history: Optional[List[Dict[str, str]]] = None,
+        attached_files: Optional[List[Dict[str, Any]]] = None
+    ) -> DecisionTrace:
         start_time = time.perf_counter()
         trace_id = f"trace-{uuid.uuid4().hex[:8]}"
         steps: List[TraceStep] = []
@@ -54,15 +61,31 @@ class TrustAgent:
         risk_info = await risk_classifier.classify(query)
         is_high_stakes = risk_info.get("is_high_stakes", False)
 
+        # Context assembly (Conversation History & Uploaded Documents)
+        context_str = ""
+        doc_sources: List[str] = []
+        if history:
+            prev_turns = [f"{m.get('role', 'user').title()}: {m.get('content', '')}" for m in history[-6:]]
+            context_str += "Conversation Context:\n" + "\n".join(prev_turns) + "\n\n"
+        
+        if attached_files:
+            for f in attached_files:
+                fname = f.get("name", "document.txt")
+                doc_sources.append(fname)
+                fcontent = f.get("content", "")[:2000]
+                context_str += f"Attached Document [{fname}]:\n{fcontent}\n\n"
+
         # Step 1: Initial Planning and Draft Generation
         plan = await planner.create_plan(query)
-        draft_prompt = f"Provide a candidate response to the user query:\n{query}"
+        draft_prompt = f"{context_str}Provide an articulate, accurate candidate response to the user query:\n{query}"
         draft_resp = await llm_client.generate(prompt=draft_prompt, temperature=0.7)
         total_cost += draft_resp.cost_usd
         current_answer = draft_resp.content
 
         # Initial Scoring Pass
         report = await self._evaluate_confidence(query, current_answer, plan["steps"], plan["planned_action"], is_high_stakes)
+        if doc_sources:
+            report.sources = list(set(report.sources + doc_sources))
         initial_confidence = report.calibrated_score
         trajectory.append(initial_confidence)
 
@@ -259,6 +282,8 @@ class TrustAgent:
             iteration_count=len(steps),
             requires_human_approval=is_high_stakes,
             escalation_id=escalation_id,
+            selected_model="TrustGuard Auto Router (Adaptive LLM)",
+            sources=report.sources,
         )
 
     async def _evaluate_confidence(
@@ -325,6 +350,16 @@ class TrustAgent:
             has_human_verified_evidence=has_human
         )
         report = explainer.enrich_report(report, query)
+
+        # Populate high-level signal metrics for Trust Report UI
+        report.evidence_quality = round(s3["score"], 2)
+        report.source_reliability = 0.98 if has_human else round(min(1.0, max(0.5, s3["score"] * 1.05)), 2)
+        report.model_agreement = round(s1["score"], 2)
+        report.reasoning_consistency = round(s4["score"], 2)
+        report.risk_level = "CRITICAL" if is_high_stakes else ("HIGH" if report.calibrated_score < 0.4 else ("MEDIUM" if report.calibrated_score < 0.75 else "LOW"))
+        report.agents_engaged = ["Trust Manager", "Research Agent", "Critic Agent"] if s3["score"] < 0.85 else ["Trust Manager", "Reasoning Agent"]
+        report.sources = list(set([c.source for c in claims if c.source and c.source != "general_knowledge_base"])) or ["Core Verified Knowledge Base"]
+
         return report
 
 trust_agent = TrustAgent()

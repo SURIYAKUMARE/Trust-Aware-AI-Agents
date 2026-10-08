@@ -64,6 +64,13 @@ class ConfidenceReport(BaseModel):
     sentences: List[SentenceVerification] = Field(default_factory=list)
     plain_explanation: str = ""
     has_human_verified_evidence: bool = False
+    evidence_quality: Optional[float] = None
+    source_reliability: Optional[float] = None
+    model_agreement: Optional[float] = None
+    reasoning_consistency: Optional[float] = None
+    risk_level: Optional[str] = None
+    agents_engaged: List[str] = Field(default_factory=list)
+    sources: List[str] = Field(default_factory=list)
 
 class TraceStep(BaseModel):
     step_index: int
@@ -92,6 +99,8 @@ class DecisionTrace(BaseModel):
     iteration_count: int = 1
     requires_human_approval: bool = False
     escalation_id: Optional[str] = None
+    selected_model: Optional[str] = None
+    sources: List[str] = Field(default_factory=list)
 
 class EscalationItem(BaseModel):
     id: str
@@ -119,6 +128,9 @@ class CompareResult(BaseModel):
 class AskRequest(BaseModel):
     query: str
     session_id: Optional[str] = None
+    model_profile: Optional[str] = "auto"
+    history: Optional[List[Dict[str, str]]] = None
+    attached_files: Optional[List[Dict[str, Any]]] = None
 
 class BaselineRequest(BaseModel):
     query: str

@@ -97,7 +97,13 @@ def read_root():
 async def ask_trust_agent(req: AskRequest):
     """Run query through TrustAgent confidence engine and autonomous routing loop."""
     try:
-        trace = await trust_agent.run(req.query, session_id=req.session_id)
+        trace = await trust_agent.run(
+            req.query, 
+            session_id=req.session_id,
+            model_profile=req.model_profile,
+            history=req.history,
+            attached_files=req.attached_files
+        )
         TRACES_CACHE[trace.trace_id] = trace
         monitor_logger.log_decision_trace(trace)
         return trace

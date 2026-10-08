@@ -6,6 +6,8 @@ import {
   DemoScenario,
   SimulationResponse,
   AdversarialPreset,
+  ModelProfile,
+  UploadedFile
 } from './types';
 import { clientAgent, getStoredModelSettings } from './services/clientAgent';
 
@@ -170,13 +172,25 @@ const FALLBACK_EVAL_RESULTS = {
 };
 
 export const api = {
-  async ask(query: string, sessionId?: string): Promise<DecisionTrace> {
+  async ask(
+    query: string, 
+    sessionId?: string,
+    modelProfile: ModelProfile = 'auto',
+    history?: Array<{ sender: 'user' | 'agent'; text: string }>,
+    attachedFiles?: UploadedFile[]
+  ): Promise<DecisionTrace> {
     const base = getApiBase();
     try {
       const res = await fetch(`${base}/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, session_id: sessionId }),
+        body: JSON.stringify({ 
+          query, 
+          session_id: sessionId,
+          model_profile: modelProfile,
+          history: history?.map(h => ({ role: h.sender, content: h.text })),
+          attached_files: attachedFiles
+        }),
       });
       if (res.ok) {
         return await res.json();
@@ -185,7 +199,7 @@ export const api = {
       console.warn('Backend /api/ask unavailable, using resilient client TrustEngine:', e);
     }
     // Resilient fallback to client-side TrustEngine
-    return await clientAgent.run(query);
+    return await clientAgent.run(query, sessionId, modelProfile, history, attachedFiles);
   },
 
   async baseline(query: string): Promise<any> {
