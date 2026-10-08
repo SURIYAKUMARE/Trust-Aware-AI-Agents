@@ -22,10 +22,13 @@ from app.schemas import (
     AnalyzeRequest,
     AnalyzeScreenRequest,
     AnalyzeResponse,
+    MultiAIConsensusRequest,
+    MultiAIConsensusResponse,
 )
 from app.agent.trust_agent import trust_agent
 from app.agent.baseline_agent import baseline_agent
 from app.agent.external_verifier import external_verifier
+from app.consensus import multi_ai_consensus_engine
 from app.token_saver.engine import token_saver_engine
 from app.monitor.logger import monitor_logger
 from app.monitor.metrics import metrics_aggregator
@@ -537,4 +540,18 @@ def get_verification_by_id(analysis_id: str):
     if analysis_id in external_verifier.analyses_history:
         return external_verifier.analyses_history[analysis_id]
     raise HTTPException(status_code=404, detail="Analysis trace not found.")
+
+@app.post("/api/multi-ai/consensus", response_model=MultiAIConsensusResponse)
+async def get_multi_ai_consensus(req: MultiAIConsensusRequest):
+    """
+    Query multiple leading AI models (Google Gemini, ChatGPT, Claude, Groq Llama, TrustGuard),
+    calculate the Answer Occurrence Rate across models, detect hallucinations/outliers,
+    and return the verified correct consensus answer.
+    """
+    try:
+        return await multi_ai_consensus_engine.run_consensus(req.query, req.models_to_query)
+    except Exception as e:
+        logger.error(f"Error during multi-AI consensus evaluation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 

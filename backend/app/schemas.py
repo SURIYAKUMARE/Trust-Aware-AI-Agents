@@ -269,3 +269,40 @@ class AnalyzeResponse(BaseModel):
     cached: bool = False
     latency_ms: float = 0.0
 
+
+# --- 13. MULTI-AI CONSENSUS & ANSWER OCCURRENCE RATE SCHEMAS ---
+
+class AIModelAnswer(BaseModel):
+    model_name: str
+    provider: str  # google, openai, anthropic, groq, perplexity, trustguard
+    answer: str
+    confidence: float
+    latency_ms: float
+    agrees_with_consensus: bool
+    occurrence_cluster: str
+    key_claims: List[str] = Field(default_factory=list)
+
+class ClaimOccurrence(BaseModel):
+    claim: str
+    occurrence_rate: float  # 0.0 to 1.0 (e.g., 0.80 = 80%)
+    supporting_models: List[str] = Field(default_factory=list)
+    dissenting_models: List[str] = Field(default_factory=list)
+    status: Literal["VERIFIED_CONSENSUS", "MAJORITY_SUPPORTED", "DISPUTED", "REFUTED"]
+
+class MultiAIConsensusRequest(BaseModel):
+    query: str
+    models_to_query: Optional[List[str]] = None
+
+class MultiAIConsensusResponse(BaseModel):
+    query: str
+    consensus_answer: str
+    occurrence_rate: float  # 0.0 to 1.0 (e.g. 0.80 = 80%)
+    total_models_queried: int
+    agreeing_models_count: int
+    consensus_level: Literal["UNANIMOUS", "STRONG_CONSENSUS", "MAJORITY", "DIVIDED", "OUTLIER_REJECTED"]
+    model_answers: List[AIModelAnswer]
+    claim_occurrences: List[ClaimOccurrence] = Field(default_factory=list)
+    outlier_warnings: List[str] = Field(default_factory=list)
+    synthesis_rationale: str
+    latency_ms: float
+

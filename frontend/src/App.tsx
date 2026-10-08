@@ -60,6 +60,7 @@ export function App() {
   const [latestTrace, setLatestTrace] = useState<DecisionTrace | null>(null);
   const [compareResult, setCompareResult] = useState<CompareResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isMultiAIMode, setIsMultiAIMode] = useState<boolean>(false);
   const [pendingEscalationsCount, setPendingEscalationsCount] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -234,17 +235,30 @@ export function App() {
         text: m.text,
       }));
 
-      const trace = await api.ask(text, activeSessionId, modelProfile, historyContext, files);
-      setLatestTrace(trace);
+      let agentMessage: ChatMessage;
 
-      const agentMessage: ChatMessage = {
-        id: `msg-${Date.now() + 1}`,
-        sender: 'agent',
-        text: trace.answer,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        trace: trace,
-        sources: trace.sources,
-      };
+      if (isMultiAIMode) {
+        // Query Google, ChatGPT, Gemini, Claude, Groq and compute cross-model occurrence rate
+        const consensus = await api.getMultiAIConsensus(text);
+        agentMessage = {
+          id: `msg-${Date.now() + 1}`,
+          sender: 'agent',
+          text: consensus.consensus_answer,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          consensus_result: consensus,
+        };
+      } else {
+        const trace = await api.ask(text, activeSessionId, modelProfile, historyContext, files);
+        setLatestTrace(trace);
+        agentMessage = {
+          id: `msg-${Date.now() + 1}`,
+          sender: 'agent',
+          text: trace.answer,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          trace: trace,
+          sources: trace.sources,
+        };
+      }
 
       setSessions(prev => prev.map(s => s.id === activeSessionId ? {
         ...s,
@@ -368,6 +382,8 @@ export function App() {
               onRegenerateResponse={handleRegenerateResponse}
               isLoading={isLoading}
               modelProfile={modelProfile}
+              isMultiAIMode={isMultiAIMode}
+              onToggleMultiAIMode={setIsMultiAIMode}
             />
           )}
 

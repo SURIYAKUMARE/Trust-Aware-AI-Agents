@@ -198,6 +198,7 @@ export interface ChatMessage {
   attachedFiles?: UploadedFile[];
   isStreaming?: boolean;
   sources?: string[];
+  consensus_result?: MultiAIConsensusResult;
 }
 
 export interface ConversationSession {
@@ -303,6 +304,40 @@ export interface AnalyzeResponse {
   verified_answer?: string;
   tokens_saved: number;
   cached: boolean;
+  latency_ms: number;
+}
+
+// Multi-AI Consensus & Answer Occurrence Engine
+export interface AIModelAnswer {
+  model_name: string;
+  provider: 'google' | 'openai' | 'anthropic' | 'groq' | 'perplexity' | 'trustguard';
+  answer: string;
+  confidence: number;
+  latency_ms: number;
+  agrees_with_consensus: boolean;
+  occurrence_cluster: string;
+  key_claims?: string[];
+}
+
+export interface ClaimOccurrence {
+  claim: string;
+  occurrence_rate: number; // 0.0 to 1.0
+  supporting_models: string[];
+  dissenting_models: string[];
+  status: 'VERIFIED_CONSENSUS' | 'MAJORITY_SUPPORTED' | 'DISPUTED' | 'REFUTED';
+}
+
+export interface MultiAIConsensusResult {
+  query: string;
+  consensus_answer: string;
+  occurrence_rate: number; // 0.0 to 1.0 (e.g. 0.80 = 80%)
+  total_models_queried: number;
+  agreeing_models_count: number;
+  consensus_level: 'UNANIMOUS' | 'STRONG_CONSENSUS' | 'MAJORITY' | 'DIVIDED' | 'OUTLIER_REJECTED';
+  model_answers: AIModelAnswer[];
+  claim_occurrences: ClaimOccurrence[];
+  outlier_warnings: string[];
+  synthesis_rationale: string;
   latency_ms: number;
 }
 

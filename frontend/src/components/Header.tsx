@@ -72,7 +72,7 @@ export const Header: React.FC<HeaderProps> = ({
       badge: pendingEscalationsCount 
     },
     { id: 'timeline', label: 'Timeline', icon: <Activity className="w-4 h-4" /> },
-    { id: 'compare', label: 'Compare Mode', icon: <GitCompare className="w-4 h-4" /> },
+    { id: 'compare', label: 'Multi-AI Compare', icon: <GitCompare className="w-4 h-4" /> },
     { id: 'architecture', label: 'Architecture', icon: <Network className="w-4 h-4" /> },
     { id: 'demo', label: 'Demo Presets', icon: <Sparkles className="w-4 h-4 text-amber-400" /> },
   ];

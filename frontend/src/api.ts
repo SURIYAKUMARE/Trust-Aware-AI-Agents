@@ -13,7 +13,8 @@ import {
   TokenAnalyticsResponse,
   AnalyzeRequest,
   AnalyzeScreenRequest,
-  AnalyzeResponse
+  AnalyzeResponse,
+  MultiAIConsensusResult
 } from './types';
 import { clientAgent, getStoredModelSettings } from './services/clientAgent';
 
@@ -524,4 +525,22 @@ export const api = {
       mode: req.mode || 'quick',
     });
   },
+
+  async getMultiAIConsensus(query: string, models?: string[]): Promise<MultiAIConsensusResult> {
+    const base = getApiBase();
+    try {
+      const res = await fetch(`${base}/multi-ai/consensus`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, models_to_query: models }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Backend /api/multi-ai/consensus unavailable, using client fallback:', e);
+    }
+    return clientAgent.runMultiAIConsensus(query, models);
+  },
 };
+

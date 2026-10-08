@@ -21,8 +21,10 @@ import {
   Sparkles,
   ArrowRight,
   Volume2,
-  VolumeX
+  VolumeX,
+  Users
 } from 'lucide-react';
+import { ConsensusResultCard } from './ConsensusResultCard';
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -163,6 +165,13 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               <span>{trustBadge.text}</span>
             </button>
           )}
+
+          {message.consensus_result && (
+            <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold border bg-blue-950/80 text-blue-300 border-blue-500/40 shadow-sm">
+              <Users className="w-3 h-3 text-blue-400" />
+              <span>Consensus {Math.round(message.consensus_result.occurrence_rate * 100)}%</span>
+            </span>
+          )}
         </div>
 
         {/* Attached Files for User Message */}
@@ -201,6 +210,11 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
             <span className="inline-block w-2 h-4 ml-1 bg-blue-400 animate-pulse align-middle" />
           )}
         </div>
+
+        {/* Multi-AI Consensus Card & Answer Occurrence Rate */}
+        {!isUser && message.consensus_result && (
+          <ConsensusResultCard consensus={message.consensus_result} compact={true} />
+        )}
 
         {/* Interactive Follow-Up Suggestion Pills */}
         {!isUser && followUps.length > 0 && (
