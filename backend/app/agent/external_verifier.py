@@ -150,12 +150,32 @@ class ExternalAIVerifier:
         comp_res = token_saver_engine.compress(response)
         tokens_saved = comp_res.saved_tokens
 
+        sources_list = list(dict.fromkeys([c.source for c in verified_claims if c.source])) or ["TrustGuard Factbase"]
+        reasons_list = [
+            "Strong empirical evidence support" if supported_count > 0 else "Limited factual corroboration",
+            "No conflicting evidence detected" if contradictions == 0 else f"{contradictions} contradiction(s) found",
+            "High semantic consistency across verification paths" if uncertainty < 0.25 else "Moderate domain uncertainty"
+        ]
+        recommendation_str = (
+            "Answer appears reliable and verified" if trust_score >= 80 
+            else ("Review flagged claims before relying on this answer" if trust_score >= 50 
+            else "High likelihood of factual inaccuracies or unsupported assertions")
+        )
+
         res = AnalyzeResponse(
             analysis_id=analysis_id,
             query=prompt,
             response_text=response,
             trust_score=trust_score,
             trust_label=trust_label,
+            trust_level=trust_label,
+            claims_checked=len(verified_claims),
+            claims_verified=supported_count,
+            uncertain_claims=no_evidence_count,
+            contradictions=contradictions,
+            reasons=reasons_list,
+            recommendation=recommendation_str,
+            sources=sources_list,
             mode=mode.value,
             provider=req.provider or "generic",
             claims=verified_claims,
@@ -334,6 +354,14 @@ class ExternalAIVerifier:
             response_text=response,
             trust_score=0.0,
             trust_label="CRITICAL RISK",
+            trust_level="CRITICAL RISK",
+            claims_checked=1,
+            claims_verified=0,
+            uncertain_claims=0,
+            contradictions=1,
+            reasons=[f"Critical security hazard: {reason}", "Autonomous execution policy strictly violated"],
+            recommendation="Action blocked. Human supervisor sign-off strictly required.",
+            sources=["TrustGuard Safety Policy"],
             mode="high_risk",
             provider=provider or "generic",
             claims=claims,

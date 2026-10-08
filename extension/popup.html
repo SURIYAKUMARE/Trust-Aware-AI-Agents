@@ -6,61 +6,116 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      width: 360px;
+      width: 380px;
+      max-height: 600px;
+      overflow-y: auto;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: #090d16;
       color: #f1f5f9;
-      padding: 16px;
+      padding: 14px;
     }
+    body::-webkit-scrollbar { width: 5px; }
+    body::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+
+    /* Header */
     .header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       border-bottom: 1px solid #1e293b;
-      padding-bottom: 12px;
-      margin-bottom: 14px;
+      padding-bottom: 10px;
+      margin-bottom: 12px;
     }
-    .title {
-      font-size: 15px;
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .brand-title {
+      font-size: 14px;
       font-weight: 700;
       color: #38bdf8;
+      letter-spacing: -0.2px;
+    }
+    .brand-sub {
+      font-size: 10px;
+      color: #64748b;
+    }
+    .status-container {
       display: flex;
       align-items: center;
       gap: 6px;
     }
     .status-badge {
       font-size: 11px;
-      padding: 2px 8px;
+      padding: 3px 8px;
       border-radius: 9999px;
-      background: rgba(16, 185, 129, 0.2);
-      color: #34d399;
-      border: 1px solid #10b981;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      cursor: default;
     }
+    .status-online {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+    .status-offline {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+    .btn-retry {
+      font-size: 10px;
+      color: #38bdf8;
+      background: none;
+      border: none;
+      text-decoration: underline;
+      cursor: pointer;
+      padding: 0 2px;
+    }
+    .btn-retry:hover { color: #7dd3fc; }
+
+    /* Cards */
     .card {
-      background: #111827;
-      border: 1px solid #1f2937;
-      border-radius: 10px;
-      padding: 12px;
-      margin-bottom: 12px;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 9px;
+      padding: 11px;
+      margin-bottom: 10px;
     }
     .card-title {
       font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      color: #9ca3af;
+      color: #94a3b8;
       margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    label {
+      font-size: 11px;
+      color: #94a3b8;
+      display: block;
+      margin-bottom: 4px;
     }
     select, input, textarea {
       width: 100%;
-      background: #1f2937;
-      border: 1px solid #374151;
-      color: #f3f4f6;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #f1f5f9;
       border-radius: 6px;
-      padding: 6px 10px;
+      padding: 7px 9px;
       font-size: 12px;
       outline: none;
+      transition: border-color 0.15s ease;
     }
+    select:focus, input:focus, textarea:focus {
+      border-color: #38bdf8;
+    }
+
+    /* Buttons */
     .btn {
       width: 100%;
       background: #0284c7;
@@ -79,59 +134,318 @@
       transition: background 0.15s ease;
     }
     .btn:hover { background: #0369a1; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
     .btn-secondary {
-      background: #374151;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
     }
-    .btn-secondary:hover { background: #4b5563; }
-    .privacy-notice {
+    .btn-secondary:hover { background: #334155; color: white; }
+    .btn-success {
+      background: #059669;
+    }
+    .btn-success:hover { background: #047857; }
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 11px;
+      width: auto;
+      margin-top: 0;
+    }
+
+    /* Messages & Alerts */
+    .alert-box {
+      font-size: 11px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      margin-top: 8px;
+      line-height: 1.4;
+      display: none;
+    }
+    .alert-error {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+    .alert-info {
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #bae6fd;
+    }
+
+    /* Screen Capture Preview */
+    #capture-preview-container {
+      display: none;
+      margin-top: 10px;
+      padding: 9px;
+      background: #090d16;
+      border: 1px dashed #334155;
+      border-radius: 6px;
+    }
+    .preview-img-wrapper {
+      max-height: 140px;
+      overflow: hidden;
+      border-radius: 4px;
+      border: 1px solid #1e293b;
+      background: black;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #capture-preview-img {
+      width: 100%;
+      height: auto;
+      display: block;
+      object-fit: cover;
+    }
+    .preview-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    /* Trust Result Card */
+    #trust-result-card {
+      display: none;
+      background: #0d1527;
+      border: 1px solid #1d4ed8;
+      border-radius: 9px;
+      padding: 12px;
+      margin-bottom: 12px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+    }
+    .trust-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .trust-badge-large {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .trust-score-circle {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 800;
+      border: 2px solid #10b981;
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.1);
+    }
+    .trust-meta {
+      display: flex;
+      flex-direction: column;
+    }
+    .trust-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+    .trust-mode-tag {
       font-size: 10px;
-      color: #6b7280;
-      margin-top: 6px;
+      color: #94a3b8;
+    }
+    .trust-summary {
+      font-size: 11px;
+      color: #cbd5e1;
+      line-height: 1.45;
+      background: rgba(15, 23, 42, 0.6);
+      padding: 7px 9px;
+      border-radius: 5px;
+      border: 1px solid #1e293b;
+      margin-bottom: 8px;
+    }
+    .trust-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .trust-stat-box {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 5px;
+      padding: 5px 6px;
+      text-align: center;
+    }
+    .trust-stat-val {
+      font-size: 13px;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+    .trust-stat-label {
+      font-size: 9px;
+      color: #64748b;
+      text-transform: uppercase;
+    }
+    .trust-reasons {
+      font-size: 10px;
+      color: #94a3b8;
+      padding-left: 14px;
+      margin-bottom: 8px;
       line-height: 1.4;
     }
+    .trust-reasons li { margin-bottom: 2px; }
+
+    /* Token Saver Metrics */
     .metrics-row {
       display: flex;
       justify-content: space-between;
-      font-size: 12px;
-      padding: 4px 0;
+      font-size: 11px;
+      padding: 3px 0;
     }
     .metrics-val { font-weight: 700; color: #38bdf8; }
+    .token-result-box {
+      margin-top: 8px;
+      padding: 8px;
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+    }
+
+    /* Diagnostics Panel */
+    .diagnostics-header {
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #64748b;
+      font-size: 11px;
+      padding: 6px 0;
+    }
+    .diagnostics-header:hover { color: #94a3b8; }
+    #diagnostics-body {
+      display: none;
+      margin-top: 6px;
+      padding-top: 8px;
+      border-top: 1px dashed #1e293b;
+      font-size: 11px;
+    }
+    .diag-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+    }
+    .diag-key { color: #64748b; }
+    .diag-val { color: #94a3b8; font-family: monospace; }
   </style>
 </head>
 <body>
+  <!-- Top Bar -->
   <div class="header">
-    <div class="title">
-      <span>🛡️</span> TrustGuard AI
+    <div class="brand">
+      <span style="font-size: 16px;">🛡️</span>
+      <div>
+        <div class="brand-title">TrustGuard AI</div>
+        <div class="brand-sub">Independent Reliability Layer</div>
+      </div>
     </div>
-    <div id="conn-status" class="status-badge">● Active</div>
+    <div class="status-container">
+      <div id="conn-status" class="status-badge status-offline">● Checking...</div>
+      <button id="retry-btn" class="btn-retry" title="Retry backend connection" style="display: none;">Retry</button>
+    </div>
   </div>
 
-  <!-- Verification Mode Selector -->
+  <!-- Inline Trust Result Card (dynamic) -->
+  <div id="trust-result-card">
+    <div class="trust-header">
+      <div class="trust-badge-large">
+        <div id="result-score-circle" class="trust-score-circle">--</div>
+        <div class="trust-meta">
+          <div id="result-label" class="trust-label">ANALYSIS READY</div>
+          <div id="result-mode-tag" class="trust-mode-tag">Quick Mode</div>
+        </div>
+      </div>
+      <button id="close-result-btn" class="btn-sm btn-secondary" style="border-radius: 4px; padding: 2px 7px;">✕</button>
+    </div>
+    <div id="result-summary" class="trust-summary">Loading verification results...</div>
+    <div class="trust-stats-grid">
+      <div class="trust-stat-box">
+        <div id="result-claims-checked" class="trust-stat-val">0</div>
+        <div class="trust-stat-label">Checked</div>
+      </div>
+      <div class="trust-stat-box">
+        <div id="result-claims-verified" class="trust-stat-val" style="color: #34d399;">0</div>
+        <div class="trust-stat-label">Verified</div>
+      </div>
+      <div class="trust-stat-box">
+        <div id="result-contradictions" class="trust-stat-val" style="color: #f87171;">0</div>
+        <div class="trust-stat-label">Conflicts</div>
+      </div>
+    </div>
+    <ul id="result-reasons-list" class="trust-reasons"></ul>
+    <div style="display: flex; gap: 6px;">
+      <button id="open-panel-detail-btn" class="btn btn-secondary btn-sm" style="flex: 1;">Detailed Side Panel ↗</button>
+      <button id="copy-summary-btn" class="btn btn-secondary btn-sm" style="width: auto;">Copy</button>
+    </div>
+  </div>
+
+  <!-- Card 1: Verification Mode Selector -->
   <div class="card">
-    <div class="card-title">Verification Mode</div>
+    <div class="card-title">
+      <span>Verification Mode</span>
+      <span id="active-mode-label" style="color: #38bdf8; font-size: 10px; font-weight: normal;">Active</span>
+    </div>
     <select id="mode-select">
       <option value="quick">Quick Check (Heuristic + Cache)</option>
       <option value="deep">Deep Verify (Claims + Tools)</option>
       <option value="fact">Fact Check (RAG + Factual)</option>
       <option value="math">Math Verify (SymPy Calculator)</option>
       <option value="code">Code Verify (Python Sandbox)</option>
+      <option value="research">Research / Academic Consensus</option>
       <option value="high_risk">High-Risk Safety Check</option>
     </select>
   </div>
 
-  <!-- Screen Capture Verification -->
+  <!-- Card 2: Screen Capture Verification -->
   <div class="card">
-    <div class="card-title">📸 Screen Capture Verification</div>
-    <button id="capture-tab-btn" class="btn">Capture Visible Tab</button>
-    <div class="privacy-notice">
-      🔒 <strong>Privacy-First Guarantee:</strong> Requires manual trigger. Local credentials & secret keys are automatically redacted before evaluation.
+    <div class="card-title">
+      <span>📸 Screen Capture Verification</span>
+    </div>
+    <button id="capture-tab-btn" class="btn">
+      <span>📷</span> Capture Visible Tab
+    </button>
+    <div id="capture-error" class="alert-box alert-error"></div>
+
+    <!-- Preview Container (appears after capture) -->
+    <div id="capture-preview-container">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <span style="font-size: 11px; font-weight: 600; color: #38bdf8;">Captured Tab Viewport</span>
+        <span id="preview-dimensions" style="font-size: 10px; color: #64748b;">Ready</span>
+      </div>
+      <div class="preview-img-wrapper">
+        <img id="capture-preview-img" alt="Captured tab preview" />
+      </div>
+      <div class="preview-actions">
+        <button id="confirm-analyze-btn" class="btn btn-success btn-sm" style="flex: 1;">
+          🛡️ Verify Tab Analysis
+        </button>
+        <button id="cancel-capture-btn" class="btn btn-secondary btn-sm">
+          ✕ Cancel
+        </button>
+      </div>
+    </div>
+
+    <div style="font-size: 10px; color: #64748b; margin-top: 8px; line-height: 1.4;">
+      🔒 <strong>Privacy-First Guarantee:</strong> Requires manual trigger. Local credentials, passwords & secret keys are automatically redacted before evaluation.
     </div>
   </div>
 
-  <!-- Token Saver Quick Compression -->
+  <!-- Card 3: Token Saver Studio -->
   <div class="card">
-    <div class="card-title">⚡ Token Saver Studio</div>
+    <div class="card-title">
+      <span>⚡ Token Saver Studio</span>
+      <span style="color: #34d399; font-size: 10px; font-weight: normal;">Context Compression</span>
+    </div>
     <textarea id="compress-input" rows="3" placeholder="Paste prompt or chat to compress..."></textarea>
+    <div id="compress-error" class="alert-box alert-error"></div>
     <div style="display: flex; gap: 6px; margin-top: 6px;">
       <select id="compress-mode" style="flex: 1;">
         <option value="balanced">Balanced (~50% saved)</option>
@@ -139,27 +453,68 @@
         <option value="compact">Compact Caveman (~80% saved)</option>
         <option value="lossless">Lossless (~20% saved)</option>
       </select>
-      <button id="compress-btn" class="btn" style="width: auto; margin-top: 0; padding: 6px 14px;">Compress</button>
+      <button id="compress-btn" class="btn btn-sm" style="width: auto;">Compress</button>
     </div>
-    <div id="compress-results" style="margin-top: 8px; display: none;">
+
+    <div id="compress-results" class="token-result-box" style="display: none;">
       <div class="metrics-row">
-        <span>Original Tokens:</span>
+        <span style="color: #94a3b8;">Original Tokens:</span>
         <span id="res-orig" class="metrics-val">0</span>
       </div>
       <div class="metrics-row">
-        <span>Compressed Tokens:</span>
+        <span style="color: #94a3b8;">Compressed Tokens:</span>
         <span id="res-comp" class="metrics-val">0</span>
       </div>
       <div class="metrics-row">
-        <span>Tokens Saved:</span>
+        <span style="color: #94a3b8;">Tokens Saved:</span>
         <span id="res-saved" class="metrics-val" style="color: #34d399;">0 (0%)</span>
+      </div>
+      <div style="display: flex; gap: 6px; margin-top: 8px;">
+        <button id="copy-compressed-btn" class="btn btn-secondary btn-sm" style="flex: 1;">
+          📋 Copy Compressed Text
+        </button>
       </div>
     </div>
   </div>
 
-  <!-- Navigation / Links -->
-  <button id="open-studio-btn" class="btn btn-secondary">Open Full TrustGuard Studio ↗</button>
+  <!-- Navigation / Main Studio Link -->
+  <button id="open-studio-btn" class="btn btn-secondary" style="margin-bottom: 10px;">
+    Open Full TrustGuard Studio ↗
+  </button>
 
+  <!-- Diagnostics & Settings Panel -->
+  <div class="card" style="padding: 8px 11px;">
+    <div id="diagnostics-toggle" class="diagnostics-header">
+      <span>⚙️ Diagnostics & Settings</span>
+      <span id="diag-arrow">▼</span>
+    </div>
+    <div id="diagnostics-body">
+      <div class="diag-item">
+        <span class="diag-key">Backend URL</span>
+        <span id="diag-backend-url" class="diag-val">http://localhost:8000</span>
+      </div>
+      <div class="diag-item">
+        <span class="diag-key">API Status / Latency</span>
+        <span id="diag-latency" class="diag-val">--</span>
+      </div>
+      <div class="diag-item">
+        <span class="diag-key">Extension Version</span>
+        <span id="diag-version" class="diag-val">v1.0.0</span>
+      </div>
+      <div class="diag-item">
+        <span class="diag-key">Mock Mode (Offline Dev)</span>
+        <input type="checkbox" id="mock-mode-toggle" style="width: auto; cursor: pointer;">
+      </div>
+      <div style="margin-top: 8px; display: flex; gap: 6px;">
+        <input type="text" id="custom-api-input" placeholder="http://localhost:8000" style="flex: 1; font-size: 11px; padding: 4px 6px;">
+        <button id="save-api-btn" class="btn btn-secondary btn-sm" style="width: auto;">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load dependencies in order -->
+  <script src="config.js"></script>
+  <script src="api_client.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

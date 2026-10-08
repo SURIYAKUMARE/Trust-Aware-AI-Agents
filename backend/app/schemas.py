@@ -236,15 +236,28 @@ class ClaimAnalysisItem(BaseModel):
     is_cached: bool = False
 
 class AnalyzeRequest(BaseModel):
-    prompt: str
-    response: str
+    prompt: Optional[str] = None
+    response: Optional[str] = None
+    question: Optional[str] = None
+    answer: Optional[str] = None
+    context: Optional[str] = None
     provider: Optional[str] = "generic"  # chatgpt, gemini, claude, perplexity, generic
     mode: AnalyzeMode = AnalyzeMode.QUICK
     url: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
 
+    def model_post_init(self, __context):
+        if not self.prompt and self.question:
+            self.prompt = self.question
+        elif not self.prompt:
+            self.prompt = "User Query"
+        if not self.response and self.answer:
+            self.response = self.answer
+        elif not self.response:
+            self.response = ""
+
 class AnalyzeScreenRequest(BaseModel):
-    extracted_text: str
+    extracted_text: Optional[str] = ""
     source_app: Optional[str] = "tab"  # tab, window, screen
     mode: AnalyzeMode = AnalyzeMode.QUICK
     image_base64: Optional[str] = None
@@ -255,6 +268,14 @@ class AnalyzeResponse(BaseModel):
     response_text: str
     trust_score: float  # 0.0 to 100.0
     trust_label: str  # HIGH TRUST, MEDIUM TRUST, LOW TRUST, UNVERIFIED, CRITICAL RISK
+    trust_level: Optional[str] = None
+    claims_checked: Optional[int] = 0
+    claims_verified: Optional[int] = 0
+    uncertain_claims: Optional[int] = 0
+    contradictions: Optional[int] = 0
+    reasons: Optional[List[str]] = Field(default_factory=list)
+    recommendation: Optional[str] = None
+    sources: Optional[List[str]] = Field(default_factory=list)
     mode: str
     provider: str
     claims: List[ClaimAnalysisItem] = Field(default_factory=list)

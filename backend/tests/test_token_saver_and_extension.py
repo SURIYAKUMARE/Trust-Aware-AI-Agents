@@ -163,3 +163,17 @@ def test_analyze_screen_endpoint():
     assert response.status_code == 200
     data = response.json()
     assert data["trust_score"] >= 80.0
+
+def test_health_endpoints():
+    res1 = client.get("/health")
+    assert res1.status_code == 200
+    data1 = res1.json()
+    assert data1["status"] == "ok"
+    assert data1["service"] == "TrustGuard API"
+    assert data1["version"] == "1.0.0"
+
+    res2 = client.get("/api/health")
+    assert res2.status_code == 200
+    data2 = res2.json()
+    assert data2["status"] == "ok"
+    assert data2["service"] == "TrustGuard API"

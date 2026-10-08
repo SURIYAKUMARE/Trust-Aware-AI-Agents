@@ -235,10 +235,49 @@
     });
   }
 
+  function triggerCompressionForText(text) {
+    chrome.runtime.sendMessage({
+      action: 'API_COMPRESS',
+      payload: {
+        text: text,
+        mode: 'balanced',
+        preserve_code: true,
+        redact_sensitive: true
+      }
+    }, (res) => {
+      if (res && res.success && res.data) {
+        navigator.clipboard.writeText(res.data.compressed_text).catch(() => {});
+        showToast(`⚡ Compressed: ${res.data.saved_tokens} tokens saved (${Math.round((res.data.compression_ratio || 0.5) * 100)}%) — copied!`);
+      }
+    });
+  }
+
+  function showToast(msg) {
+    const toast = document.createElement('div');
+    toast.style.position = 'fixed';
+    toast.style.bottom = '24px';
+    toast.style.right = '24px';
+    toast.style.background = '#0f172a';
+    toast.style.color = '#38bdf8';
+    toast.style.border = '1px solid #0284c7';
+    toast.style.borderRadius = '8px';
+    toast.style.padding = '10px 16px';
+    toast.style.boxShadow = '0 6px 16px rgba(0,0,0,0.6)';
+    toast.style.zIndex = '9999999';
+    toast.style.fontSize = '12px';
+    toast.style.fontWeight = '600';
+    toast.innerText = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.remove(); }, 3500);
+  }
+
   // Listen to background trigger
   chrome.runtime.onMessage.addListener((req, sender, sendResp) => {
     if (req.action === 'TRIGGER_MANUAL_VERIFY' && req.text) {
       triggerVerificationForText(req.text);
+      sendResp({ status: 'started' });
+    } else if (req.action === 'TRIGGER_MANUAL_COMPRESS' && req.text) {
+      triggerCompressionForText(req.text);
       sendResp({ status: 'started' });
     }
   });

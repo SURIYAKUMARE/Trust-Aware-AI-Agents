@@ -104,6 +104,15 @@ def read_root():
         "docs": "/docs",
     }
 
+@app.get("/health")
+@app.get("/api/health")
+def health_check():
+    return {
+        "status": "ok",
+        "service": "TrustGuard API",
+        "version": "1.0.0",
+    }
+
 @app.post("/api/ask", response_model=DecisionTrace)
 async def ask_trust_agent(req: AskRequest):
     """Run query through TrustAgent confidence engine and autonomous routing loop."""

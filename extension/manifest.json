@@ -26,25 +26,16 @@
     "sidePanel"
   ],
   "host_permissions": [
-    "https://chatgpt.com/*",
-    "https://chat.openai.com/*",
-    "https://gemini.google.com/*",
-    "https://claude.ai/*",
-    "https://www.perplexity.ai/*",
-    "http://localhost:8000/*",
-    "http://127.0.0.1:8000/*"
+    "<all_urls>"
   ],
   "content_scripts": [
     {
       "matches": [
-        "https://chatgpt.com/*",
-        "https://chat.openai.com/*",
-        "https://gemini.google.com/*",
-        "https://claude.ai/*",
-        "https://www.perplexity.ai/*",
         "<all_urls>"
       ],
       "js": [
+        "config.js",
+        "api_client.js",
         "adapters/chatgpt.js",
         "adapters/gemini.js",
         "adapters/claude.js",
