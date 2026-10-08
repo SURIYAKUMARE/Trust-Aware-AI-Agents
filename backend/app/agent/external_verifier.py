@@ -586,16 +586,16 @@ class ExternalAIVerifier:
                 latency_ms=round((time.time() - t0) * 1000, 2),
             )
 
-        # --- Step 1: Generate answer via LLM ---
+        # --- Step 1: Generate answer via LLM (compact prompt to minimise token usage) ---
         generation_prompt = (
-            f"Answer the following question accurately and concisely. "
-            f"State only verifiable facts. Do not speculate or hallucinate.\n\n"
-            f"Question: {req.question}"
+            f"Answer concisely with only verified facts. No preamble.\n"
+            f"Q: {req.question}"
         )
         llm_resp = await llm_client.generate(
             prompt=generation_prompt,
-            temperature=0.3,   # low temperature → more factual, less creative
-            max_tokens=400,
+            system_prompt="You are a factual answer engine. Reply in 1-3 sentences maximum. State only verified facts.",
+            temperature=0.2,   # lower = more factual, fewer tokens wasted on hedging
+            max_tokens=200,    # was 400 — halved to cut output token cost
         )
         ai_answer = llm_resp.content.strip()
 

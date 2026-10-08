@@ -431,23 +431,31 @@ export const api = {
         .replace(/\b(as an ai language model|as you know|in order to|i want to|i need you to)\b[!.,\s]*/gi, '')
         .trim();
 
-      const lines = cleaned.split('\n').map(l => l.trim()).filter(Boolean);
+      const lines = cleaned.split('\n').map((l: string) => l.trim()).filter(Boolean);
       const units: string[] = [];
       for (const line of lines) {
-        if (line.startsWith('```')) {
+        if (/^__CODE_BLOCK_\d+__$/.test(line)) {
           units.push(line);
           continue;
         }
-        let u = line.replace(/^(can you|please|tell me|explain|how to|write|give me)\s+/i, '').trim();
-        u = u.replace(/\b(in my project|on my system|we must|you should)\b/gi, '').trim();
-        if (line.endsWith('?') || /^(how|what|why|write|create|fix|calculate|implement)/i.test(line)) {
-          units.push(`task: ${u.replace(/\?$/, '')}`);
-        } else if (/error|exception|fail/i.test(line)) {
+        let u = line
+          .replace(/^(can\s+you(\s+please)?\s+|please\s+|tell\s+me\s+|explain\s+|how\s+to\s+|write\s+|give\s+me\s+)/i, '')
+          .replace(/\b(in my project|on my system|on my server|we must|you should|as mentioned (before|above))\b/gi, '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .replace(/[?!.,;:]+$/, '');
+
+        if (!u) continue;
+
+        const lower = line.toLowerCase();
+        if (line.endsWith('?') || /^(how|what|why|write|create|fix|calculate|implement|debug)/i.test(line)) {
+          units.push(`task: ${u}`);
+        } else if (/error|exception|fail|traceback|fatal/i.test(lower)) {
           units.push(`err: ${u}`);
-        } else if (/must|require|constraint|need/i.test(line)) {
+        } else if (/must|require|constraint|need|ensure/i.test(lower)) {
           units.push(`req: ${u}`);
-        } else if (u) {
-          units.push(u);
+        } else {
+          units.push(`ctx: ${u}`);
         }
       }
       compText = units.join(' | ') || cleaned;

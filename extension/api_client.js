@@ -193,20 +193,66 @@
     async compressContext(payload) {
       if (this.config.MOCK_MODE) {
         const text = payload.text || '';
+        const mode = payload.mode || 'balanced';
         const words = text.split(/\s+/).filter(Boolean);
         const origTokens = Math.round(words.length * 1.3);
-        const compTokens = Math.max(1, Math.round(origTokens * 0.45));
+
+        let compressed_text;
+        let ratio;
+
+        if (mode === 'compact') {
+          // Caveman mode: strip filler and convert to key:value pipe format
+          const lines = text
+            .replace(/\b(hello|hi|please|could you|can you|would you|as an ai language model|in order to|i want to)\b[!.,\s]*/gi, '')
+            .split('\n')
+            .map(l => l.trim())
+            .filter(Boolean);
+
+          const units = lines.map(line => {
+            const u = line
+              .replace(/^(can you(\s+please)?\s+|please\s+|tell me\s+|explain\s+)/i, '')
+              .replace(/[?!.,;:]+$/, '')
+              .trim();
+            if (!u) return null;
+            const lower = line.toLowerCase();
+            if (line.endsWith('?') || /^(how|what|why|write|create|fix)/i.test(line)) return `task: ${u}`;
+            if (/error|exception|fail/.test(lower)) return `err: ${u}`;
+            if (/must|require|need|ensure/.test(lower)) return `req: ${u}`;
+            return `ctx: ${u}`;
+          }).filter(Boolean);
+
+          compressed_text = units.join(' | ') || text.slice(0, 100);
+          ratio = 0.80;
+        } else if (mode === 'aggressive') {
+          compressed_text = text
+            .replace(/\b(hello|hi|please|could you|can you|would you|thank you|as an ai language model|in order to|as a matter of fact|basically|essentially|really|very|simply)\b[!.,\s]*/gi, '')
+            .replace(/\s+/g, ' ').trim();
+          ratio = 0.65;
+        } else if (mode === 'lossless') {
+          compressed_text = text
+            .replace(/\b(hello|hi|hey|thank you|have a great day)\b[!.,\s]*/gi, '')
+            .replace(/\s+/g, ' ').trim();
+          ratio = 0.20;
+        } else {
+          // balanced
+          compressed_text = text
+            .replace(/\b(please|kindly|could you|would you|thank you|in order to|as a matter of fact)\b/gi, '')
+            .replace(/\s+/g, ' ').trim();
+          ratio = 0.50;
+        }
+
+        const compTokens = Math.max(1, Math.round(origTokens * (1 - ratio)));
         return {
           success: true,
           data: {
             original_text: text,
-            compressed_text: text.replace(/\b(please|kindly|could you|would you|thank you|in order to|as a matter of fact)\b/gi, '').replace(/\s+/g, ' ').trim(),
+            compressed_text,
             original_tokens: origTokens,
             compressed_tokens: compTokens,
             saved_tokens: origTokens - compTokens,
-            compression_ratio: 0.55,
-            mode_used: payload.mode || 'balanced',
-            redacted_count: 0
+            compression_ratio: ratio,
+            mode_used: mode,
+            redacted_count: 0,
           }
         };
       }

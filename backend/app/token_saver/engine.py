@@ -206,16 +206,24 @@ class TokenSaverEngine:
         Ultra-compact 'Caveman' / Key-Value mode.
         Converts text into high-density structured signals:
         e.g., task: fix PostgreSQL error 5432 | req: keep port 5432 open
+
+        Pipeline:
+          1. Filler strip (lossless pass only — no aggressive stripping so placeholders survive)
+          2. Line/sentence split
+          3. Label each unit: task: / err: / req: / ctx:
+          4. Join with pipe separator
         """
-        cleaned = self._compress_aggressive(text)
-        
-        # Split across lines and sentences
+        # Use lossless (not aggressive) as base so __CODE_BLOCK_N__ placeholders survive
+        cleaned = self._compress_lossless(text)
+
+        # Split across lines then sentences
         raw_units: List[str] = []
         for line in cleaned.split("\n"):
             line = line.strip()
             if not line:
                 continue
-            if line.startswith("__CODE_BLOCK_"):
+            # Preserve code block placeholders as-is
+            if re.match(r"^__CODE_BLOCK_\d+__$", line):
                 raw_units.append(line)
             else:
                 sentences = [s.strip() for s in re.split(r"(?<=[.?!])\s+", line) if s.strip()]
@@ -223,25 +231,42 @@ class TokenSaverEngine:
 
         compact_items: List[str] = []
         for unit in raw_units:
-            if unit.startswith("__CODE_BLOCK_"):
+            # Pass code block placeholders through unchanged
+            if re.match(r"^__CODE_BLOCK_\d+__$", unit):
                 compact_items.append(unit)
                 continue
 
-            u_clean = re.sub(r"(?i)^(can\s+you\s+(please\s+)?(tell\s+me|explain|show|help\s+me(\s+with)?|write|give\s+me)?|please\s+|how\s+to\s+)\s*", "", unit)
-            u_clean = re.sub(r"(?i)\b(on\s+my\s+server|in\s+my\s+project|the\s+requirement\s+is\s+that|we\s+must|you\s+should)\b", "", u_clean)
-            u_clean = re.sub(r"\s+", " ", u_clean).strip(" .?!,:;")
+            # Strip leading polite/verbose prefixes
+            u_clean = re.sub(
+                r"(?i)^(can\s+you(\s+please)?\s+|please\s+|could\s+you(\s+please)?\s+|"
+                r"i\s+(would\s+like\s+to|want\s+to|need\s+to)\s+|"
+                r"tell\s+me\s+|explain\s+|help\s+me\s+(with\s+)?|"
+                r"how\s+to\s+|write\s+|give\s+me\s+)",
+                "", unit, flags=re.IGNORECASE,
+            )
+            u_clean = re.sub(
+                r"(?i)\b(on\s+my\s+(server|system|machine)|in\s+my\s+project|"
+                r"the\s+requirement\s+is\s+that|we\s+must|you\s+should|"
+                r"as\s+you\s+know|as\s+mentioned\s+(before|previously|above))\b",
+                "", u_clean,
+            )
+            u_clean = re.sub(r"\s{2,}", " ", u_clean).strip(" .?!,:;")
 
-            if unit.endswith("?") or unit.lower().startswith(("how to", "what is", "why", "write", "create", "fix")):
-                compact_items.append(f"task: {u_clean}")
-            elif any(k in unit.lower() for k in ["error", "exception", "failed"]):
+            if not u_clean:
+                continue
+
+            lower = unit.lower()
+            if unit.endswith("?") or re.match(r"(?i)^(how|what|why|when|where|write|create|fix|calculate|implement|build|debug)", unit):
+                compact_items.append(f"task: {u_clean.rstrip('?')}")
+            elif any(k in lower for k in ["error:", "exception", "traceback", "failed", "fatal", "critical"]):
                 compact_items.append(f"err: {u_clean}")
-            elif any(k in unit.lower() for k in ["must", "requirement", "need", "ensure"]):
+            elif any(k in lower for k in ["must", "requirement", "constraint", "ensure", "need to", "required"]):
                 compact_items.append(f"req: {u_clean}")
-            elif u_clean:
-                compact_items.append(u_clean)
+            else:
+                compact_items.append(f"ctx: {u_clean}")
 
-        # Join items using pipe separation for dense packing
-        return " | ".join(compact_items)
+        # Join with pipe — result looks like: task: fix auth | err: 401 Unauthorized | req: keep port 443
+        return " | ".join(compact_items) if compact_items else cleaned
 
     def _enforce_budget(self, text: str, max_tokens: int) -> str:
         """Truncates text while keeping highest priority items intact if over budget."""
