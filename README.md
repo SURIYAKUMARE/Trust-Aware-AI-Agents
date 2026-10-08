@@ -69,6 +69,15 @@ Open your browser at **`http://localhost:5173`** (Frontend) or **`http://localho
 
 ---
 
+## ⚡ Vercel Deployment (Zero Configuration)
+The project is configured for seamless deployment to Vercel:
+1. Push your changes or import `https://github.com/SURIYAKUMARE/Trust-Aware-AI-Agents.git` on [Vercel](https://vercel.com).
+2. Root directory can be left as `.` (default) or set to `frontend` — both work out of the box with the included `vercel.json` and build scripts.
+3. Vercel automatically runs the Vite production build and serves the Single Page Application (SPA) with full client-side routing and fallback support.
+4. Users can interact with the TrustGuard AI chat interface, switch between mock, Gemini, or OpenAI engines, run evaluations, inspect decision traces, and simulate adversarial trick prompts directly in the browser!
+
+---
+
 ## 🏛️ System Architecture
 
 ```mermaid
