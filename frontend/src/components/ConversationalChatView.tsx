@@ -33,6 +33,8 @@ interface ConversationalChatViewProps {
   modelProfile: ModelProfile;
   isMultiAIMode?: boolean;
   onToggleMultiAIMode?: (enabled: boolean) => void;
+  isCavemanMode?: boolean;
+  onToggleCavemanMode?: (enabled: boolean) => void;
 }
 
 export const ConversationalChatView: React.FC<ConversationalChatViewProps> = ({
@@ -44,6 +46,8 @@ export const ConversationalChatView: React.FC<ConversationalChatViewProps> = ({
   modelProfile,
   isMultiAIMode = false,
   onToggleMultiAIMode,
+  isCavemanMode = false,
+  onToggleCavemanMode,
 }) => {
   const [selectedTrace, setSelectedTrace] = useState<DecisionTrace | null>(null);
   const [isTrustModalOpen, setIsTrustModalOpen] = useState(false);
@@ -194,21 +198,38 @@ export const ConversationalChatView: React.FC<ConversationalChatViewProps> = ({
 
       {/* Sticky Bottom Chat Input */}
       <div className="p-3 sm:p-4 bg-gradient-to-t from-slate-950 via-slate-950/95 to-transparent border-t border-slate-900/60 shrink-0 space-y-2">
-        {/* Multi-AI Consensus Mode Toggle */}
-        <div className="max-w-4xl mx-auto flex items-center justify-between px-1">
-          <button
-            type="button"
-            onClick={() => onToggleMultiAIMode && onToggleMultiAIMode(!isMultiAIMode)}
-            className={`flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-semibold transition-all cursor-pointer shadow-sm ${
-              isMultiAIMode
-                ? 'bg-blue-600/20 border-blue-500 text-blue-300 shadow-blue-500/20'
-                : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5 text-blue-400" />
-            <span>Multi-AI Consensus Mode (Google + ChatGPT + Gemini + Llama)</span>
-            <span className={`w-2 h-2 rounded-full ${isMultiAIMode ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
-          </button>
+        {/* Multi-AI Consensus Mode & Caveman Token Saver Toggles */}
+        <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-2 px-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onToggleMultiAIMode && onToggleMultiAIMode(!isMultiAIMode)}
+              className={`flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-semibold transition-all cursor-pointer shadow-sm ${
+                isMultiAIMode
+                  ? 'bg-blue-600/20 border-blue-500 text-blue-300 shadow-blue-500/20'
+                  : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5 text-blue-400" />
+              <span>Multi-AI Mode</span>
+              <span className={`w-2 h-2 rounded-full ${isMultiAIMode ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onToggleCavemanMode && onToggleCavemanMode(!isCavemanMode)}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-semibold transition-all cursor-pointer shadow-sm ${
+                isCavemanMode
+                  ? 'bg-amber-600/20 border-amber-500 text-amber-300 shadow-amber-500/20'
+                  : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+              }`}
+              title="Caveman Token Saver: prunes fluff, strips pleasantries, converts to dense signals (~80% token reduction)"
+            >
+              <Zap className={`w-3.5 h-3.5 ${isCavemanMode ? 'text-amber-400 fill-amber-400' : 'text-slate-400'}`} />
+              <span>⚡ Caveman (~80% Token Saver)</span>
+              <span className={`w-2 h-2 rounded-full ${isCavemanMode ? 'bg-amber-400 animate-pulse' : 'bg-slate-600'}`} />
+            </button>
+          </div>
 
           {isMultiAIMode && (
             <span className="text-[11px] text-emerald-400 font-mono font-medium hidden sm:inline">
@@ -221,7 +242,9 @@ export const ConversationalChatView: React.FC<ConversationalChatViewProps> = ({
           onSend={onSendMessage}
           onStop={onStopGeneration}
           isLoading={isLoading}
-          placeholder={isMultiAIMode ? "Ask across Google, ChatGPT, Gemini, Claude & Groq simultaneously..." : "Ask TrustGuard AI anything (coding, math, science, research, advice, operations)..."}
+          isCavemanMode={isCavemanMode}
+          onToggleCavemanMode={onToggleCavemanMode}
+          placeholder={isMultiAIMode ? "Ask across Google, ChatGPT, Gemini, Claude & Groq simultaneously..." : (isCavemanMode ? "⚡ Caveman Mode: Ask anything (prompt will be hyper-dense and save tokens)..." : "Ask TrustGuard AI anything (coding, math, science, research, advice, operations)...")}
         />
       </div>
 

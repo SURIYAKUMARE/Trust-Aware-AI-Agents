@@ -61,6 +61,21 @@ export function App() {
   const [compareResult, setCompareResult] = useState<CompareResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isMultiAIMode, setIsMultiAIMode] = useState<boolean>(false);
+  const [isCavemanMode, setIsCavemanMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('trustguard_caveman_mode') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleCavemanMode = (enabled: boolean) => {
+    setIsCavemanMode(enabled);
+    try {
+      localStorage.setItem('trustguard_caveman_mode', String(enabled));
+    } catch {}
+  };
+
   const [pendingEscalationsCount, setPendingEscalationsCount] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -209,12 +224,33 @@ export function App() {
     const now = new Date();
     const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+    let promptToSend = text;
+    let tokenSaverInfo: any = undefined;
+
+    if (isCavemanMode && text.trim().length > 6) {
+      try {
+        const comp = await api.compressContext({ text, mode: 'compact' });
+        tokenSaverInfo = {
+          mode: 'compact_caveman',
+          original_tokens: comp.original_tokens,
+          compressed_tokens: comp.compressed_tokens,
+          saved_tokens: comp.saved_tokens,
+          saved_ratio: comp.compression_ratio,
+          cost_saved_usd: comp.estimated_cost_saved_usd,
+        };
+        promptToSend = `[CAVEMAN TOKEN SAVER DIRECTIVE: Answer in ultra-dense, zero-fluff, token-optimized style. Omit conversational greetings, filler introductions, and polite sign-offs. Use concise bullet points, direct code, or key:value format. Save ~70-85% tokens while guaranteeing 100% technical accuracy.]\n\n${comp.compressed_text}`;
+      } catch (e) {
+        console.warn('Caveman compression error, using original text:', e);
+      }
+    }
+
     const userMessage: ChatMessage = {
       id: `msg-${Date.now()}`,
       sender: 'user',
       text,
       timestamp: timeStr,
       attachedFiles: files,
+      token_saver_info: tokenSaverInfo,
     };
 
     // Update session title on first message
@@ -241,16 +277,17 @@ export function App() {
 
       if (isMultiAIMode) {
         // Query Google, ChatGPT, Gemini, Claude, Groq and compute cross-model occurrence rate
-        const consensus = await api.getMultiAIConsensus(text);
+        const consensus = await api.getMultiAIConsensus(promptToSend);
         agentMessage = {
           id: `msg-${Date.now() + 1}`,
           sender: 'agent',
           text: consensus.consensus_answer,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           consensus_result: consensus,
+          token_saver_info: tokenSaverInfo,
         };
       } else {
-        const trace = await api.ask(text, activeSessionId, modelProfile, historyContext, files);
+        const trace = await api.ask(promptToSend, activeSessionId, modelProfile, historyContext, files);
         setLatestTrace(trace);
         agentMessage = {
           id: `msg-${Date.now() + 1}`,
@@ -259,6 +296,7 @@ export function App() {
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           trace: trace,
           sources: trace.sources,
+          token_saver_info: tokenSaverInfo,
         };
       }
 
@@ -386,6 +424,8 @@ export function App() {
               modelProfile={modelProfile}
               isMultiAIMode={isMultiAIMode}
               onToggleMultiAIMode={setIsMultiAIMode}
+              isCavemanMode={isCavemanMode}
+              onToggleCavemanMode={handleToggleCavemanMode}
             />
           )}
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DecisionTrace, MultiAIConsensusResult, ClaimVerification } from '../types';
+import { DecisionTrace, MultiAIConsensusResult, ClaimVerification, TokenSaverInfo } from '../types';
 import { 
   CheckCircle2, 
   ShieldCheck, 
@@ -14,12 +14,14 @@ import {
   Layers,
   FileCheck2,
   ExternalLink,
-  Info
+  Info,
+  Zap
 } from 'lucide-react';
 
 interface AnswerCorrectnessCardProps {
   trace?: DecisionTrace;
   consensusResult?: MultiAIConsensusResult;
+  tokenSaverInfo?: TokenSaverInfo;
   onOpenTrustReport?: (trace: DecisionTrace) => void;
   onToggleHeatmap?: () => void;
   showHeatmap?: boolean;
@@ -28,6 +30,7 @@ interface AnswerCorrectnessCardProps {
 export const AnswerCorrectnessCard: React.FC<AnswerCorrectnessCardProps> = ({
   trace,
   consensusResult,
+  tokenSaverInfo,
   onOpenTrustReport,
   onToggleHeatmap,
   showHeatmap = false,
@@ -166,6 +169,15 @@ export const AnswerCorrectnessCard: React.FC<AnswerCorrectnessCardProps> = ({
                     <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-blue-950/80 text-blue-300 border border-blue-500/40">
                       <Users className="w-3 h-3 text-blue-400" />
                       <span>{Math.round(consensusResult.occurrence_rate * 100)}% Consensus</span>
+                    </span>
+                  )}
+                  {tokenSaverInfo && (
+                    <span 
+                      title={`Original: ${tokenSaverInfo.original_tokens} tokens | Compressed: ${tokenSaverInfo.compressed_tokens} tokens (${Math.round(tokenSaverInfo.saved_ratio * 100)}% saved)`}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-950/80 text-amber-300 border border-amber-500/40"
+                    >
+                      <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
+                      <span>⚡ Caveman -{Math.round(tokenSaverInfo.saved_ratio * 100)}%</span>
                     </span>
                   )}
                 </div>

@@ -418,9 +418,41 @@ export const api = {
     } catch (e) {
       console.warn('Backend /api/compress unavailable, using client fallback:', e);
     }
-    // Client fallback
+    // Client fallback with Caveman mode support
     const origTokens = Math.max(1, Math.floor(req.text.length / 3.8));
-    const compText = req.text.replace(/(hello|hi|please|sure|certainly|as an ai language model)[!.,\s]*/gi, '').trim();
+    let compText = req.text;
+    
+    if (req.mode === 'compact') {
+      // Caveman compression: convert into high-density key:value signals (~75-85% token reduction)
+      let cleaned = req.text
+        .replace(/\b(hello|hi|hey|greetings|good\s+(morning|afternoon|evening)|please|could you|can you|would you|kindly|i was wondering if you could|help me|tell me|explain to me)\b[!.,\s]*/gi, '')
+        .replace(/\b(as an ai language model|as you know|in order to|i want to|i need you to)\b[!.,\s]*/gi, '')
+        .trim();
+
+      const lines = cleaned.split('\n').map(l => l.trim()).filter(Boolean);
+      const units: string[] = [];
+      for (const line of lines) {
+        if (line.startsWith('```')) {
+          units.push(line);
+          continue;
+        }
+        let u = line.replace(/^(can you|please|tell me|explain|how to|write|give me)\s+/i, '').trim();
+        u = u.replace(/\b(in my project|on my system|we must|you should)\b/gi, '').trim();
+        if (line.endsWith('?') || /^(how|what|why|write|create|fix|calculate|implement)/i.test(line)) {
+          units.push(`task: ${u.replace(/\?$/, '')}`);
+        } else if (/error|exception|fail/i.test(line)) {
+          units.push(`err: ${u}`);
+        } else if (/must|require|constraint|need/i.test(line)) {
+          units.push(`req: ${u}`);
+        } else if (u) {
+          units.push(u);
+        }
+      }
+      compText = units.join(' | ') || cleaned;
+    } else {
+      compText = req.text.replace(/(hello|hi|please|sure|certainly|as an ai language model)[!.,\s]*/gi, '').trim();
+    }
+
     const compTokens = Math.max(1, Math.floor(compText.length / 3.8));
     const saved = Math.max(0, origTokens - compTokens);
     return {

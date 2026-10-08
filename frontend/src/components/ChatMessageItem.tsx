@@ -22,7 +22,8 @@ import {
   ArrowRight,
   Volume2,
   VolumeX,
-  Users
+  Users,
+  Zap
 } from 'lucide-react';
 import { ConsensusResultCard } from './ConsensusResultCard';
 import { AnswerCorrectnessCard } from './AnswerCorrectnessCard';
@@ -173,6 +174,16 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               <span>Consensus {Math.round(message.consensus_result.occurrence_rate * 100)}%</span>
             </span>
           )}
+
+          {message.token_saver_info && (
+            <span
+              title={`Original: ${message.token_saver_info.original_tokens} tokens | Compressed: ${message.token_saver_info.compressed_tokens} tokens (${Math.round(message.token_saver_info.saved_ratio * 100)}% saved)`}
+              className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold border bg-amber-950/80 text-amber-300 border-amber-500/40 shadow-sm"
+            >
+              <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
+              <span>⚡ Caveman -{Math.round(message.token_saver_info.saved_ratio * 100)}%</span>
+            </span>
+          )}
         </div>
 
         {/* Attached Files for User Message */}
@@ -217,6 +228,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
           <AnswerCorrectnessCard
             trace={trace}
             consensusResult={message.consensus_result}
+            tokenSaverInfo={message.token_saver_info}
             onOpenTrustReport={onOpenTrustReport}
             onToggleHeatmap={() => setShowHeatmap(!showHeatmap)}
             showHeatmap={showHeatmap}

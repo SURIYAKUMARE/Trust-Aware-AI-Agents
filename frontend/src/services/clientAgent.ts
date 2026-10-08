@@ -962,7 +962,8 @@ export class ClientTrustAgent {
     attachedFiles?: UploadedFile[],
     modelProfile: ModelProfile = 'auto'
   ): string {
-    const q = query.trim();
+    const cleanRaw = query.replace(/\[CAVEMAN TOKEN SAVER DIRECTIVE[\s\S]*?\]\s*/i, '').trim();
+    const q = cleanRaw.trim();
     const lower = q.toLowerCase();
 
     // 0. Attached Document Question Handling (RAG Pipeline)

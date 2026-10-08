@@ -188,6 +188,15 @@ export interface UploadedFile {
   summary?: string;
 }
 
+export interface TokenSaverInfo {
+  mode: string;
+  original_tokens: number;
+  compressed_tokens: number;
+  saved_tokens: number;
+  saved_ratio: number;
+  cost_saved_usd?: number;
+}
+
 export interface ChatMessage {
   id: string;
   sender: 'user' | 'agent';
@@ -199,6 +208,7 @@ export interface ChatMessage {
   isStreaming?: boolean;
   sources?: string[];
   consensus_result?: MultiAIConsensusResult;
+  token_saver_info?: TokenSaverInfo;
 }
 
 export interface ConversationSession {

@@ -11,7 +11,8 @@ import {
   Image, 
   CheckCircle2, 
   AlertCircle,
-  Sparkles
+  Sparkles,
+  Zap
 } from 'lucide-react';
 
 interface ChatInputProps {
@@ -19,6 +20,8 @@ interface ChatInputProps {
   onStop?: () => void;
   isLoading: boolean;
   placeholder?: string;
+  isCavemanMode?: boolean;
+  onToggleCavemanMode?: (enabled: boolean) => void;
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
@@ -26,6 +29,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   onStop,
   isLoading,
   placeholder = 'Ask TrustGuard AI anything...',
+  isCavemanMode = false,
+  onToggleCavemanMode,
 }) => {
   const [text, setText] = useState('');
   const [files, setFiles] = useState<UploadedFile[]>([]);
@@ -182,11 +187,31 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={`relative w-full max-w-4xl mx-auto rounded-2xl transition-all ${
-        isDragging
+        isCavemanMode
+          ? 'bg-slate-900/90 border border-amber-500/40 shadow-xl shadow-amber-500/5 focus-within:border-amber-500/70'
+          : isDragging
           ? 'ring-2 ring-blue-500 bg-blue-950/20'
           : 'bg-slate-900/90 border border-slate-800 focus-within:border-blue-500/60 shadow-xl'
       }`}
     >
+      {/* Caveman Token Saver Active Banner */}
+      {isCavemanMode && (
+        <div className="flex items-center justify-between px-3 py-1.5 bg-gradient-to-r from-amber-950/60 via-slate-900/60 to-amber-950/60 border-b border-amber-500/30 text-[11px] font-mono text-amber-300 rounded-t-2xl">
+          <div className="flex items-center gap-1.5">
+            <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+            <span className="font-bold">Caveman Token Saver Active:</span>
+            <span className="text-slate-300 hidden sm:inline">Prunes fluff, converts to dense signals (~80% token savings)</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onToggleCavemanMode && onToggleCavemanMode(false)}
+            className="text-[10px] text-amber-400/80 hover:text-white underline cursor-pointer"
+          >
+            Disable
+          </button>
+        </div>
+      )}
+
       {/* File Upload Preview Chips */}
       {files.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 p-3 pb-1 border-b border-slate-800/80">
@@ -233,6 +258,26 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
         {/* Input Tools & Send Action */}
         <div className="flex items-center gap-1 shrink-0 pb-0.5">
+          {/* Caveman Mode Toggle Button */}
+          <button
+            type="button"
+            onClick={() => onToggleCavemanMode && onToggleCavemanMode(!isCavemanMode)}
+            title={isCavemanMode ? 'Caveman Token Saver is ON (~80% token reduction)' : 'Enable Caveman Token Saver to reduce tokens'}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
+              isCavemanMode
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm shadow-amber-500/10'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
+          >
+            <Zap className={`w-3.5 h-3.5 ${isCavemanMode ? 'text-amber-400 fill-amber-400' : 'text-slate-400'}`} />
+            <span className="hidden sm:inline">Caveman</span>
+            {isCavemanMode ? (
+              <span className="text-[10px] text-amber-400 font-sans">-80%</span>
+            ) : (
+              <span className="text-[10px] text-slate-500 font-sans hidden md:inline">Save Tokens</span>
+            )}
+          </button>
+
           {/* Clear text button */}
           {text.trim().length > 0 && !isLoading && (
             <button
@@ -311,10 +356,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           {files.length > 0 && <span>• {files.length} document(s) attached</span>}
         </div>
         {charCount > 0 && (
-          <div>
+          <div className="flex items-center gap-1">
             <span>{charCount} chars</span>
             <span className="mx-1">•</span>
-            <span>~{approxTokens} tokens</span>
+            {isCavemanMode ? (
+              <span className="text-amber-400 font-bold">
+                ~{approxTokens} → ~{Math.max(1, Math.round(approxTokens * 0.22))} tokens (-78%)
+              </span>
+            ) : (
+              <span>~{approxTokens} tokens</span>
+            )}
           </div>
         )}
       </div>
