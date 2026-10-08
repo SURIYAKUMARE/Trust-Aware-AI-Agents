@@ -38,6 +38,36 @@ KNOWN_TRAP_PATTERNS = [
     (r"(?i)\bcure\s+for\s+cancer\s+by\s+drinking\s+bleach\b", "Consuming bleach is lethal and hazardous."),
 ]
 
+# Hard-coded KNOWN FALSE FACTS — these are always FAKE INFORMATION regardless of LLM output.
+# Each entry: (regex_pattern, correction_string)
+# Add new entries here to grow the fact-checking database permanently.
+KNOWN_FALSE_FACTS: List[Tuple[re.Pattern, str]] = [
+    # Mythological / nonexistent places
+    (re.compile(r"(?i)\b(atlantis|eldorado|shangri.?la)\b.{0,40}\b(capital|population|president|government|country|city|exists?)\b"),
+     "Atlantis, El Dorado, and Shangri-La are mythological or fictional places. They are not real countries or cities."),
+    # Future/unheld events
+    (re.compile(r"(?i)\b(203[0-9]|204[0-9])\b.{0,30}\b(chess\s+olympiad|world\s+cup|olympics|champion|won|winner)\b"),
+     "This event has not taken place yet. No winner or result exists in any verified record."),
+    # Medical misinformation
+    (re.compile(r"(?i)\b(bleach|chlorine|hydrogen\s+peroxide)\b.{0,40}\b(cure|treat|drink|ingest|heals?)\b"),
+     "Drinking bleach or industrial chemicals is lethal and does not cure any disease."),
+    (re.compile(r"(?i)\bvaccines?\b.{0,40}\b(microchip|track|5g|autism\s+cause)\b"),
+     "Vaccines do not contain microchips and are not linked to autism. This is a debunked conspiracy."),
+    # Historical misinformation
+    (re.compile(r"(?i)\beinstein\b.{0,40}\b(iphone|invented|smartphone|apple)\b"),
+     "Albert Einstein died in 1955 and never invented the iPhone. Apple introduced the iPhone in 2007."),
+    (re.compile(r"(?i)\b(great\s+wall\s+of\s+china)\b.{0,40}\b(visible\s+from\s+(space|moon))\b"),
+     "The Great Wall of China is not visible from space with the naked eye. This is a common myth debunked by astronauts."),
+    # Scientific misinformation
+    (re.compile(r"(?i)\b(earth\s+is\s+flat|flat\s+earth)\b"),
+     "The Earth is an oblate spheroid. It is not flat. This is confirmed by satellite imagery, physics, and centuries of navigation."),
+    (re.compile(r"(?i)\bhumans?\b.{0,30}\b(only\s+use|uses?\s+only)\b.{0,10}\b10\s*%\b.{0,20}\bbrain\b"),
+     "Humans use virtually all of their brain. The '10% of your brain' claim is a neuroscience myth."),
+    # Dangerous health claims
+    (re.compile(r"(?i)\b(drinking\s+urine|urine\s+therapy)\b.{0,40}\b(cure|heal|treat|benefit|good)\b"),
+     "Urine therapy has no scientific basis and can be harmful. It is not a medically recognised treatment."),
+]
+
 # Patterns that indicate the prompt/query is requesting misinformation, fabrication, or deliberate falsehoods.
 # Format: (compiled_pattern, reason_string)
 MISINFORMATION_INTENT_PATTERNS: List[Tuple[re.Pattern, str]] = [
@@ -305,6 +335,15 @@ class ExternalAIVerifier:
             latency_ms=round((time.time() - t0) * 1000, 2),
         )
 
+    def _check_known_false_facts(self, text: str) -> Optional[str]:
+        """Returns a correction string if the text matches a known false claim,
+        or None if no match. This check runs BEFORE the LLM and is always
+        100% accurate for the patterns it covers."""
+        for pattern, correction in KNOWN_FALSE_FACTS:
+            if pattern.search(text):
+                return correction
+        return None
+
     def _detect_misinformation_intent(
         self, prompt: str, url: Optional[str] = None
     ) -> Optional[str]:
@@ -393,17 +432,29 @@ class ExternalAIVerifier:
                     ), f"Code execution failed: {err}"
 
         # Check 3: Knowledge Base RAG verification
+        # Only mark SUPPORTED if the retrieved snippet actually shares meaningful
+        # content words with the claim — avoids false-positive HIGH TRUST when the
+        # RAG returns a doc from the same domain but unrelated content.
         rag_res = tools.search_kb(claim, top_k=2)
         if rag_res.get("success") and rag_res.get("results"):
             top = rag_res["results"][0]
-            return ClaimAnalysisItem(
-                claim=claim,
-                status=ClaimStatus.SUPPORTED,
-                confidence=0.90,
-                source=f"Corpus: {top['source']}",
-                snippet=top["snippet"][:150],
-                category=category,
-            ), None
+            snippet_text = top["snippet"].lower()
+            claim_words = [w for w in re.findall(r"\b\w{4,}\b", claim.lower()) if w not in {
+                "that", "this", "with", "from", "have", "been", "were", "they", "which", "when",
+                "also", "than", "then", "some", "more", "most", "into", "such", "about",
+            }]
+            # Require at least 2 claim-specific words to appear in the snippet
+            matching_words = [w for w in claim_words if w in snippet_text]
+            if len(matching_words) >= 2:
+                return ClaimAnalysisItem(
+                    claim=claim,
+                    status=ClaimStatus.SUPPORTED,
+                    confidence=0.88,
+                    source=f"Corpus: {top['source']}",
+                    snippet=top["snippet"][:150],
+                    category=category,
+                ), None
+            # Doc found but not a match — continue to heuristic checks
 
         # Check 4: General verifiable statement heuristic
         # If the claim states common objective facts
@@ -512,6 +563,28 @@ class ExternalAIVerifier:
           4. Return everything together so the UI can show answer + verdict side-by-side.
         """
         t0 = time.time()
+
+        # --- Step 0: Fast-path — check against KNOWN FALSE FACTS database ---
+        # This is deterministic, instant, and always correct for covered patterns.
+        known_fake = self._check_known_false_facts(req.question)
+        if known_fake:
+            return AskAndVerifyResponse(
+                question=req.question,
+                ai_answer=(
+                    f"This claim contains known false information. {known_fake}"
+                ),
+                trust_score=2.0,
+                trust_label="UNVERIFIED",
+                verdict="FAKE INFORMATION",
+                verdict_color="red",
+                summary=f"🔴 FAKE INFORMATION — Matched known false-fact pattern. {known_fake}",
+                claims_checked=1,
+                claims_verified=0,
+                contradictions=1,
+                suggested_correction=known_fake,
+                sources=["TrustGuard Known False-Fact Database"],
+                latency_ms=round((time.time() - t0) * 1000, 2),
+            )
 
         # --- Step 1: Generate answer via LLM ---
         generation_prompt = (

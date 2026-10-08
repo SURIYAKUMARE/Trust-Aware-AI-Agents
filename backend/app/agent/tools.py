@@ -122,8 +122,8 @@ except Exception as _e:
                 "query": query,
                 "results": [
                     {
-                        "title": f"Archived Index: {query[:30]}",
-                        "snippet": f"Authoritative documentation regarding {query}. Documented in public knowledge base.",
+                        "title": f"Search Index: {query[:50]}",
+                        "snippet": f"No definitive authoritative record found for: {query}. Verify against primary sources.",
                         "url": "https://local-archive.internal"
                     }
                 ],
