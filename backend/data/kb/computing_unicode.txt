@@ -1,0 +1,1 @@
+Computing: Unicode provides a unique number for every character across platforms, programs, and languages, supporting over 149,000 characters.

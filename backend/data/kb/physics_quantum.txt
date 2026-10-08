@@ -1,0 +1,1 @@
+Physics: Planck's constant is approximately 6.62607015 x 10^-34 joule-seconds, establishing the fundamental quantum scale.

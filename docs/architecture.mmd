@@ -1,0 +1,90 @@
+flowchart TD
+    subgraph ClientLayer["User & Client Layer"]
+        User["User / Enterprise API Client"]
+        UI["TrustAgent Web Interface (React + Vite)"]
+    end
+
+    subgraph Ingestion["Input & Guardrail Layer"]
+        API["FastAPI Gateway (/api/ask, /api/compare)"]
+        Risk["Risk Classifier (risk.py)\n- Financial Transfers\n- Irreversible Deletions\n- Medical / Safety Risks"]
+        Planner["Planner Agent (planner.py)\n- Query Decomposition\n- Tool Candidate Selection"]
+    end
+
+    subgraph ConfidenceEngine["Multi-Signal Confidence Engine (4 Independent Scorers)"]
+        Scorer1["1. Self-Consistency (self_consistency.py)\n- N=5 Samples (temp 0.8)\n- all-MiniLM-L6-v2 Embeddings\n- Cosine Cluster Agreement (w=0.35)"]
+        Scorer2["2. Evidence Support (evidence.py)\n- Atomic Claim Decomposition\n- RAG Retrieval & Verification\n- Contradiction Penalty (w=0.30)"]
+        Scorer3["3. Verbalized Rubric (verbalized.py)\n- Structured JSON Rubric\n- Coverage, Ambiguity & Risk (w=0.20)"]
+        Scorer4["4. Reasoning Check (reasoning_check.py)\n- Logical Gap Inspection\n- Arithmetic & Action Flaws (w=0.15)"]
+    end
+
+    subgraph CalibrationAndDiagnosis["Calibration & Uncertainty Diagnosis"]
+        Ensemble["Weighted Score Aggregator (aggregator.py)"]
+        Calibrator["Isotonic Regression Calibrator (calibration.py)\n- Fitted on Dev Split\n- Minimizes ECE & Brier Score"]
+        Detector["Uncertainty Type Detector\n- knowledge_gap | ambiguity\n- conflict | reasoning_risk | high_stakes"]
+        Explainer["Explainability Engine (explain.py)\n- Plain-English 'Why Unsure'\n- Per-Claim Evidence Table"]
+    end
+
+    subgraph RoutingLayer["Automated Decision Router (router.py)"]
+        RouteDecision{"Calibrated Score & Uncertainty"}
+        AnswerPath["HIGH (>= 0.85)\n-> Direct Answer"]
+        VerifyPath["MEDIUM (0.65 - 0.85)\n-> Tool Verification & Re-score"]
+        ClarifyPath["LOW (0.45 - 0.65) + Ambiguity\n-> Target Clarifying Question"]
+        SearchPath["LOW (0.45 - 0.65) + Knowledge Gap\n-> DuckDuckGo Search"]
+        HandoffPath["VERY_LOW (0.30 - 0.45)\n-> Domain Specialist Agent"]
+        AbstainPath["< 0.30 + Normal Risk\n-> Honest Abstention"]
+        EscalatePath["< 0.30 or Critical Risk\n-> Mandatory Human Escalation"]
+    end
+
+    subgraph ToolsAndSpecialists["Execution & Verification Engines"]
+        Calc["SymPy Symbolic Calculator"]
+        Sandbox["Sandboxed Python Executor"]
+        RAG["ChromaDB Vector KB (32 Docs)"]
+        Web["DuckDuckGo Web Search"]
+        MathSpecialist["MathCode Specialist Agent"]
+        SafetySpecialist["Safety & Compliance Specialist Agent"]
+    end
+
+    subgraph HumanLoop["Human-in-the-Loop Governance"]
+        EscQueue["Escalation Queue (SQLite)"]
+        Reviewer["Human Supervisor (Approve / Reject / Edit)"]
+    end
+
+    subgraph MonitorLayer["Monitoring & Drift Telemetry (monitor/)"]
+        Logger["Structured Logger (SQLite)"]
+        ReliabilityDiagram["Reliability Diagram & ECE Tracking"]
+        DriftDetector["Drift Detector (drift.py)\n- Rolling ECE & Gap Alert (>0.10)"]
+    end
+
+    %% Wiring
+    User --> UI
+    UI --> API
+    API --> Risk
+    Risk -->|Safe or Low Risk| Planner
+    Risk -->|Critical High-Stakes Override| EscalatePath
+    Planner --> Scorer1 & Scorer2 & Scorer3 & Scorer4
+    Scorer1 & Scorer2 & Scorer3 & Scorer4 --> Ensemble
+    Ensemble --> Calibrator
+    Calibrator --> Detector
+    Detector --> Explainer
+    Explainer --> RouteDecision
+
+    RouteDecision -->|Score >= 0.85| AnswerPath
+    RouteDecision -->|0.65 <= Score < 0.85| VerifyPath
+    RouteDecision -->|0.45 <= Score < 0.65 & Ambiguity| ClarifyPath
+    RouteDecision -->|0.45 <= Score < 0.65 & Gap| SearchPath
+    RouteDecision -->|0.30 <= Score < 0.45| HandoffPath
+    RouteDecision -->|Score < 0.30| AbstainPath
+    RouteDecision -->|Critical Risk Override| EscalatePath
+
+    VerifyPath --> Calc & Sandbox & RAG
+    SearchPath --> Web
+    HandoffPath --> MathSpecialist & SafetySpecialist
+    Calc & Sandbox & RAG & Web & MathSpecialist & SafetySpecialist -->|Re-score Trajectory| Ensemble
+
+    EscalatePath --> EscQueue
+    EscQueue --> Reviewer
+    Reviewer -->|Authorized Action| API
+
+    AnswerPath & AbstainPath & ClarifyPath --> Logger
+    Logger --> ReliabilityDiagram
+    ReliabilityDiagram --> DriftDetector
