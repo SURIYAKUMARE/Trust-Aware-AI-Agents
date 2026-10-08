@@ -314,6 +314,29 @@ class MultiAIConsensusRequest(BaseModel):
     query: str
     models_to_query: Optional[List[str]] = None
 
+
+# --- 14. ASK & VERIFY SCHEMAS ---
+
+class AskAndVerifyRequest(BaseModel):
+    question: str
+    mode: Optional[str] = "fact"          # verification mode after generation
+    provider: Optional[str] = "trustguard"
+
+class AskAndVerifyResponse(BaseModel):
+    question: str
+    ai_answer: str                         # the LLM-generated answer
+    trust_score: float                     # 0.0 – 100.0
+    trust_label: str                       # HIGH TRUST / MEDIUM TRUST / LOW TRUST / UNVERIFIED
+    verdict: str                           # "REAL INFORMATION" | "LIKELY REAL" | "UNCERTAIN" | "FAKE INFORMATION"
+    verdict_color: str                     # "green" | "amber" | "red"
+    summary: str                           # one-line human-readable verdict explanation
+    claims_checked: int
+    claims_verified: int
+    contradictions: int
+    suggested_correction: Optional[str] = None
+    sources: List[str] = Field(default_factory=list)
+    latency_ms: float = 0.0
+
 class MultiAIConsensusResponse(BaseModel):
     query: str
     consensus_answer: str

@@ -318,6 +318,29 @@ export interface AnalyzeResponse {
   latency_ms: number;
 }
 
+// Ask & Verify
+export interface AskAndVerifyRequest {
+  question: string;
+  mode?: AnalyzeMode;
+  provider?: string;
+}
+
+export interface AskAndVerifyResponse {
+  question: string;
+  ai_answer: string;
+  trust_score: number;
+  trust_label: string;
+  verdict: 'REAL INFORMATION' | 'LIKELY REAL' | 'UNCERTAIN' | 'FAKE INFORMATION';
+  verdict_color: 'green' | 'amber' | 'red';
+  summary: string;
+  claims_checked: number;
+  claims_verified: number;
+  contradictions: number;
+  suggested_correction?: string;
+  sources: string[];
+  latency_ms: number;
+}
+
 // Multi-AI Consensus & Answer Occurrence Engine
 export interface AIModelAnswer {
   model_name: string;

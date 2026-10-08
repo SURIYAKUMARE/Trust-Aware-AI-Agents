@@ -268,6 +268,90 @@
       }
     }
 
+    /**
+     * Ask a question, get an AI-generated answer, and verify it in one call.
+     */
+    async askAndVerify(payload) {
+      if (this.config.MOCK_MODE) {
+        return this._getMockAskAndVerify(payload);
+      }
+
+      const url = `${this.getBaseUrl()}/api/ask-and-verify`;
+      this._log('POST', url, { question: (payload.question || '').slice(0, 60) });
+
+      try {
+        const resp = await this._fetchWithTimeout(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({
+            question: payload.question || '',
+            mode: payload.mode || 'fact',
+            provider: payload.provider || 'trustguard',
+          }),
+        }, 20000); // allow up to 20 s — LLM generation + verification
+
+        if (!resp.ok) {
+          const errText = await resp.text();
+          throw new Error(`API returned HTTP ${resp.status}: ${errText}`);
+        }
+
+        const data = await resp.json();
+        return { success: true, data };
+      } catch (err) {
+        this._error('POST', url, err);
+        return { success: false, error: err.message };
+      }
+    }
+
+    _getMockAskAndVerify(payload) {
+      const q = (payload.question || '').toLowerCase();
+      let ai_answer, verdict, verdict_color, trust_score, summary, suggested_correction;
+
+      if (q.includes('capital of france') || q.includes('paris')) {
+        ai_answer = 'The capital of France is Paris.';
+        verdict = 'REAL INFORMATION'; verdict_color = 'green'; trust_score = 97;
+        summary = '🟢 REAL INFORMATION — 1 claim confirmed by evidence (97% trust).';
+        suggested_correction = null;
+      } else if (q.includes('2031') || q.includes('olympiad')) {
+        ai_answer = 'The 2031 Chess Olympiad has not yet taken place and has no recorded winner.';
+        verdict = 'UNCERTAIN'; verdict_color = 'amber'; trust_score = 55;
+        summary = '⚠️ UNCERTAIN — Answer could not be fully verified (55% trust). Treat with caution.';
+        suggested_correction = null;
+      } else if (q.includes('bleach') || q.includes('cure')) {
+        ai_answer = 'Drinking bleach is extremely dangerous and can be fatal. It does not cure any illness.';
+        verdict = 'REAL INFORMATION'; verdict_color = 'green'; trust_score = 99;
+        summary = '🟢 REAL INFORMATION — Safety fact confirmed by medical corpus (99% trust).';
+        suggested_correction = null;
+      } else {
+        ai_answer = `Based on available knowledge: ${payload.question}`;
+        verdict = 'LIKELY REAL'; verdict_color = 'amber'; trust_score = 72;
+        summary = '🟡 LIKELY REAL — Answer is mostly correct (72% trust) but some claims lack direct citations.';
+        suggested_correction = null;
+      }
+
+      return {
+        success: true,
+        data: {
+          question: payload.question,
+          ai_answer,
+          trust_score,
+          trust_label: trust_score >= 80 ? 'HIGH TRUST' : trust_score >= 60 ? 'MEDIUM TRUST' : 'LOW TRUST',
+          verdict,
+          verdict_color,
+          summary,
+          claims_checked: 2,
+          claims_verified: verdict === 'REAL INFORMATION' ? 2 : 1,
+          contradictions: verdict === 'FAKE INFORMATION' ? 1 : 0,
+          suggested_correction,
+          sources: ['TrustGuard Internal KB'],
+          latency_ms: 320,
+        }
+      };
+    }
+
     _getMockAnalysis(payload) {
       return {
         success: true,

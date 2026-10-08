@@ -63,7 +63,11 @@
           prompt: sanitizedPrompt,
           response: sanitizedResponse,
           provider: activeAdapter.name.toLowerCase(),
-          mode: 'quick'
+          mode: 'quick',
+          // Pass page URL and title so the backend can detect misinformation
+          // intent encoded in the URL (e.g. google.com/search?q=tell+any+lie)
+          url: window.location.href,
+          metadata: { page_title: document.title, hostname: window.location.hostname }
         }
       }, (res) => {
         if (res && res.success && res.data) {
@@ -86,6 +90,9 @@
     if (data.trust_label === 'CRITICAL RISK') {
       badge.classList.add('trustguard-badge-critical');
       badge.innerHTML = `🚨 Risk Alert (${score}%)`;
+    } else if (data.trust_label === 'MISINFORMATION INTENT') {
+      badge.classList.add('trustguard-badge-critical');
+      badge.innerHTML = `⚠️ Misinfo Intent`;
     } else if (score >= 80) {
       badge.classList.add('trustguard-badge-high');
       badge.innerHTML = `🛡️ ${score}% Trusted`;
@@ -109,6 +116,7 @@
 
     const score = Math.round(data.trust_score);
     const scoreColor = score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444';
+    const isMisinfo = data.trust_label === 'MISINFORMATION INTENT';
 
     const claimsHtml = (data.claims || []).slice(0, 5).map(c => `
       <div style="background: #1e293b; border-radius: 8px; padding: 10px; margin-bottom: 8px; font-size: 13px; border-left: 3px solid ${c.status === 'SUPPORTED' ? '#10b981' : c.status === 'CONTRADICTED' ? '#ef4444' : '#64748b'};">
@@ -136,11 +144,11 @@
         </div>
 
         <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px; padding: 12px; background: rgba(30, 41, 59, 0.6); border-radius: 12px;">
-          <div class="trustguard-score-circle" style="border-color: ${scoreColor}; color: ${scoreColor};">
-            ${score}%
+          <div class="trustguard-score-circle" style="border-color: ${isMisinfo ? '#f97316' : scoreColor}; color: ${isMisinfo ? '#f97316' : scoreColor};">
+            ${isMisinfo ? '⚠️' : score + '%'}
           </div>
           <div style="flex: 1;">
-            <div style="font-size: 16px; font-weight: 700; color: ${scoreColor};">${escapeHtml(data.trust_label)}</div>
+            <div style="font-size: 16px; font-weight: 700; color: ${isMisinfo ? '#f97316' : scoreColor};">${escapeHtml(data.trust_label)}</div>
             <div style="font-size: 12px; color: #cbd5e1; margin-top: 4px;">${escapeHtml(data.summary)}</div>
             <div style="display: flex; gap: 12px; margin-top: 8px; font-size: 11px; color: #94a3b8;">
               <span>Factual: <strong>${Math.round(data.factual_consistency * 100)}%</strong></span>
@@ -226,7 +234,9 @@
         prompt: 'User Selected Snippet',
         response: text,
         provider: 'selection',
-        mode: 'quick'
+        mode: 'quick',
+        url: window.location.href,
+        metadata: { page_title: document.title, hostname: window.location.hostname }
       }
     }, (res) => {
       if (res && res.success && res.data) {

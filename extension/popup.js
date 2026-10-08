@@ -331,6 +331,112 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // 5b. ASK & VERIFY
+  const avQuestion   = document.getElementById('av-question');
+  const avAskBtn     = document.getElementById('av-ask-btn');
+  const avError      = document.getElementById('av-error');
+  const avAnswerBox  = document.getElementById('av-answer-box');
+  const avVerdictBar = document.getElementById('av-verdict-bar');
+  const avSummary    = document.getElementById('av-summary');
+  const avCorrection = document.getElementById('av-correction');
+
+  // Allow Ctrl+Enter / Cmd+Enter to submit from the textarea
+  avQuestion.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      avAskBtn.click();
+    }
+  });
+
+  avAskBtn.addEventListener('click', async () => {
+    const question = avQuestion.value.trim();
+
+    // Reset UI state
+    avError.style.display = 'none';
+    avAnswerBox.style.display = 'none';
+    avVerdictBar.style.display = 'none';
+    avVerdictBar.className = 'av-verdict-bar';
+    avSummary.style.display = 'none';
+    avCorrection.style.display = 'none';
+
+    if (!question) {
+      avError.innerText = 'Please enter a question first.';
+      avError.style.display = 'block';
+      avQuestion.focus();
+      return;
+    }
+
+    avAskBtn.disabled = true;
+    avAskBtn.innerHTML = '<span>⏳</span> Generating & Verifying…';
+
+    try {
+      const mode = modeSelect ? modeSelect.value : 'fact';
+      const res = await apiClient.askAndVerify({ question, mode, provider: 'trustguard' });
+
+      avAskBtn.disabled = false;
+      avAskBtn.innerHTML = '<span>🛡️</span> Ask &amp; Verify';
+
+      if (!res.success || !res.data) {
+        avError.innerText = res.error || 'Verification failed. Check your API connection.';
+        avError.style.display = 'block';
+        return;
+      }
+
+      const d = res.data;
+
+      // ① Show the AI-generated answer
+      avAnswerBox.innerText = d.ai_answer || '(No answer generated)';
+      avAnswerBox.style.display = 'block';
+
+      // ② Show verdict banner with colour-coded class
+      const colorClass = {
+        green: 'av-verdict-green',
+        amber: 'av-verdict-amber',
+        red:   'av-verdict-red',
+      }[d.verdict_color] || 'av-verdict-amber';
+
+      const verdictIcon = {
+        'REAL INFORMATION': '🟢',
+        'LIKELY REAL':      '🟡',
+        'UNCERTAIN':        '⚠️',
+        'FAKE INFORMATION': '🔴',
+      }[d.verdict] || '⚠️';
+      avVerdictBar.className = `av-verdict-bar ${colorClass}`;
+      avVerdictBar.innerHTML =
+        `${verdictIcon} ${d.verdict} &nbsp;·&nbsp; <span style="font-weight:400">${Math.round(d.trust_score)}% trust</span>`;
+      avVerdictBar.style.display = 'flex';
+
+      // ③ One-line summary
+      avSummary.innerText = d.summary || '';
+      avSummary.style.display = 'block';
+
+      // ④ Correction block — only when FAKE INFORMATION
+      if (d.suggested_correction) {
+        avCorrection.innerText = '🔴 Correction: ' + d.suggested_correction;
+        avCorrection.style.display = 'block';
+      }
+
+      // Also surface in the main trust card so users can open the side panel
+      displayTrustCard({
+        trust_score: d.trust_score,
+        trust_level: d.trust_label,
+        trust_label: d.trust_label,
+        summary: d.summary,
+        claims_checked: d.claims_checked,
+        claims_verified: d.claims_verified,
+        contradictions: d.contradictions,
+        reasons: [d.summary],
+        sources: d.sources || [],
+      }, mode);
+
+    } catch (err) {
+      avAskBtn.disabled = false;
+      avAskBtn.innerHTML = '<span>🛡️</span> Ask &amp; Verify';
+      avError.innerText = err.message || 'Unexpected error during ask & verify.';
+      avError.style.display = 'block';
+    }
+  });
+
   // 6. OPEN FULL TRUSTGUARD STUDIO
   openStudioBtn.addEventListener('click', () => {
     const appUrl = (typeof TG_CONFIG !== 'undefined' ? TG_CONFIG.APP_URL : 'http://localhost:5173') || 'http://localhost:5173';

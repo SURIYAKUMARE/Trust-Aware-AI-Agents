@@ -17,11 +17,14 @@ from app.schemas import (
     AnalyzeMode,
     ClaimAnalysisItem,
     ClaimStatus,
+    AskAndVerifyRequest,
+    AskAndVerifyResponse,
 )
 from app.agent.tools import tools
 from app.agent.verifier_cache import verifier_cache
 from app.token_saver.engine import token_saver_engine, estimate_tokens
 from app.agent.risk import risk_classifier
+from app.llm import llm_client
 
 logger = logging.getLogger("trustguard.verifier")
 
@@ -33,6 +36,23 @@ KNOWN_TRAP_PATTERNS = [
     (r"(?i)\bchronosync\s+protocol\b", "Chronosync is a fictitious protocol with no IETF standard."),
     (r"(?i)\bquantum\s+telekinesis\b", "Quantum telekinesis is not scientifically established."),
     (r"(?i)\bcure\s+for\s+cancer\s+by\s+drinking\s+bleach\b", "Consuming bleach is lethal and hazardous."),
+]
+
+# Patterns that indicate the prompt/query is requesting misinformation, fabrication, or deliberate falsehoods.
+# Format: (compiled_pattern, reason_string)
+MISINFORMATION_INTENT_PATTERNS: List[Tuple[re.Pattern, str]] = [
+    # Explicit requests for lies or fake content
+    (re.compile(r"(?i)\b(tell\s+(me\s+)?a?\s*lie|say\s+something\s+false|give\s+me\s+a\s+fake|make\s+up|fabricate|invent\s+a\s+fact)\b"), "Query explicitly requests fabricated or false information."),
+    (re.compile(r"(?i)\b(lie\s+to\s+me|tell\s+lies|spread\s+(fake|false)\s+(news|info|information|facts?))\b"), "Query requests deliberate misinformation."),
+    # Search-bar style: "tell any lie", "tell a lie", "give a false answer"
+    (re.compile(r"(?i)^(tell\s+(any|a|me\s+a?|some)?\s*lie[s]?)$"), "Query is a direct request for a lie."),
+    (re.compile(r"(?i)\b(fake\s+answer|false\s+answer|wrong\s+answer\s+on\s+purpose|incorrect\s+(fact|answer|information))\b"), "Query requests a deliberately incorrect answer."),
+    # Requests to pretend or roleplay as a system that lies
+    (re.compile(r"(?i)\b(pretend\s+you\s+(are|have\s+no)\s+(guidelines|restrictions|rules)|ignore\s+(your\s+)?instructions?|act\s+as\s+if\s+you\s+can\s+lie)\b"), "Query attempts to bypass factual constraints via roleplay framing."),
+    # Misinformation about real people / events
+    (re.compile(r"(?i)\b(write\s+fake\s+news|create\s+misinformation|generate\s+(disinformation|propaganda|hoax))\b"), "Query requests generation of disinformation or propaganda."),
+    # URL-context: Google search queries asking for lies
+    (re.compile(r"(?i)[?&]q=([^&]*(%20|\+)?(lie[s]?|fake|false|fabricat)([^&]*)?)"), "Search query in URL contains misinformation intent."),
 ]
 
 class ExternalAIVerifier:
@@ -66,6 +86,19 @@ class ExternalAIVerifier:
         if is_critical_risk or mode == AnalyzeMode.HIGH_RISK:
             res = self._handle_high_risk_analysis(
                 analysis_id, prompt, response, req.provider, risk_result, t0
+            )
+            verifier_cache.set(cache_key, res.model_dump())
+            self.analyses_history[analysis_id] = res
+            return res
+
+        # Step 1b: Misinformation Intent Detection
+        # Check if the prompt/URL is explicitly requesting false or fabricated content.
+        # This must happen BEFORE claim-level verification because the page content being
+        # factually real (e.g. a dictionary page) does not make the *request* legitimate.
+        misinfo_reason = self._detect_misinformation_intent(prompt, url=req.url)
+        if misinfo_reason:
+            res = self._handle_misinformation_intent(
+                analysis_id, prompt, response, req.provider, misinfo_reason, t0
             )
             verifier_cache.set(cache_key, res.model_dump())
             self.analyses_history[analysis_id] = res
@@ -122,13 +155,16 @@ class ExternalAIVerifier:
             # Significant penalty for factual errors or hallucinations
             base_score = max(15.0, 65.0 - (contradictions * 25.0) + (supported_count * 5.0))
         elif no_evidence_count == total_evaluated:
+            # Fully unverified — no positive evidence at all
             base_score = 45.0
         else:
-            base_score = min(98.0, 75.0 + (evidence_consistency * 23.0))
+            # Scale from 50–98 based on ratio of supported to total claims.
+            # NO_EVIDENCE claims are not rewarded — they pull evidence_consistency below 1.0
+            # so a response with mostly unverifiable sentences can never reach HIGH TRUST band.
+            # Floor is 50 to avoid penalising answers that are unverifiable but not wrong.
+            base_score = min(98.0, 50.0 + (evidence_consistency * 48.0))
 
         trust_score = round(max(5.0, min(99.0, base_score)), 1)
-
-        # Trust Label
         if trust_score >= 80.0:
             trust_label = "HIGH TRUST"
         elif trust_score >= 60.0:
@@ -215,6 +251,73 @@ class ExternalAIVerifier:
             mode=req.mode,
         )
         return await self.analyze(analyze_req)
+
+    def _handle_misinformation_intent(
+        self,
+        analysis_id: str,
+        prompt: str,
+        response: str,
+        provider: Optional[str],
+        reason: str,
+        t0: float,
+    ) -> AnalyzeResponse:
+        """Returns a low-trust, flagged response when the query/URL explicitly
+        requests fabricated, false, or misleading content — regardless of whether
+        the page content itself happens to be factually accurate."""
+        claim = ClaimAnalysisItem(
+            claim="Query explicitly requests false or fabricated content",
+            status=ClaimStatus.CONTRADICTED,
+            confidence=0.97,
+            source="TrustGuard Misinformation Intent Detector",
+            snippet=reason,
+            category="safety",
+        )
+        return AnalyzeResponse(
+            analysis_id=analysis_id,
+            query=prompt,
+            response_text=response,
+            trust_score=0.0,
+            trust_label="MISINFORMATION INTENT",
+            trust_level="MISINFORMATION INTENT",
+            claims_checked=1,
+            claims_verified=0,
+            uncertain_claims=0,
+            contradictions=1,
+            reasons=[
+                reason,
+                "Content may appear factually real — but the intent of the request is to produce or find false information.",
+                "TrustGuard flags the query intent, not just the page content.",
+            ],
+            recommendation="This query is asking for misinformation. TrustGuard cannot verify or endorse it.",
+            sources=["TrustGuard Misinformation Intent Policy"],
+            mode="quick",
+            provider=provider or "generic",
+            claims=[claim],
+            summary=f"⚠️ MISINFORMATION INTENT DETECTED: {reason} The trust score reflects the intent of the request, not the factual accuracy of individual page sentences.",
+            factual_consistency=0.0,
+            evidence_consistency=0.0,
+            contradiction_count=1,
+            uncertainty_score=1.0,
+            suggested_correction="Rephrase your query to ask for verified, factual information instead.",
+            verified_answer=None,
+            tokens_saved=0,
+            cached=False,
+            latency_ms=round((time.time() - t0) * 1000, 2),
+        )
+
+    def _detect_misinformation_intent(
+        self, prompt: str, url: Optional[str] = None
+    ) -> Optional[str]:
+        """Returns a reason string if the prompt/URL signals a request for misinformation,
+        or None if no such intent is detected."""
+        combined = prompt.strip()
+        if url:
+            combined = combined + " " + url
+
+        for pattern, reason in MISINFORMATION_INTENT_PATTERNS:
+            if pattern.search(combined):
+                return reason
+        return None
 
     def _extract_atomic_claims(self, text: str) -> List[str]:
         """Decomposes response into key verifiable factual or logical clauses."""
@@ -398,5 +501,82 @@ class ExternalAIVerifier:
     def _generate_corrected_answer(self, original_response: str, corrections: List[str]) -> str:
         correction_bullet = "\n".join(f"- {c}" for c in corrections)
         return f"{original_response}\n\n### 🛡️ TrustGuard Verified Corrections\n{correction_bullet}"
+
+    async def ask_and_verify(self, req: AskAndVerifyRequest) -> AskAndVerifyResponse:
+        """Generate an AI answer to the question, then immediately verify it.
+
+        Flow:
+          1. Ask the LLM for a clear, factual answer.
+          2. Pass (question, generated_answer) into the normal analyze() pipeline.
+          3. Map the trust_score + contradictions into a human-readable verdict.
+          4. Return everything together so the UI can show answer + verdict side-by-side.
+        """
+        t0 = time.time()
+
+        # --- Step 1: Generate answer via LLM ---
+        generation_prompt = (
+            f"Answer the following question accurately and concisely. "
+            f"State only verifiable facts. Do not speculate or hallucinate.\n\n"
+            f"Question: {req.question}"
+        )
+        llm_resp = await llm_client.generate(
+            prompt=generation_prompt,
+            temperature=0.3,   # low temperature → more factual, less creative
+            max_tokens=400,
+        )
+        ai_answer = llm_resp.content.strip()
+
+        # --- Step 2: Verify the generated answer against itself ---
+        verify_mode = AnalyzeMode(req.mode) if req.mode in [m.value for m in AnalyzeMode] else AnalyzeMode.FACT
+        analyze_req = AnalyzeRequest(
+            prompt=req.question,
+            response=ai_answer,
+            provider=req.provider or "trustguard",
+            mode=verify_mode,
+        )
+        analysis: AnalyzeResponse = await self.analyze(analyze_req)
+
+        # --- Step 3: Map trust score → verdict ---
+        score = analysis.trust_score
+        contradictions = analysis.contradictions or 0
+
+        if contradictions > 0 or score < 40:
+            verdict = "FAKE INFORMATION"
+            verdict_color = "red"
+        elif score >= 80:
+            verdict = "REAL INFORMATION"
+            verdict_color = "green"
+        elif score >= 60:
+            verdict = "LIKELY REAL"
+            verdict_color = "amber"
+        else:
+            verdict = "UNCERTAIN"
+            verdict_color = "amber"
+
+        # Build a single-sentence summary the UI can show under the answer
+        if verdict == "REAL INFORMATION":
+            summary = f"🟢 REAL INFORMATION — {analysis.claims_verified} claim(s) confirmed by evidence ({score:.0f}% trust)."
+        elif verdict == "LIKELY REAL":
+            summary = f"🟡 LIKELY REAL — Answer is mostly correct ({score:.0f}% trust) but {analysis.uncertain_claims} claim(s) lack direct citations."
+        elif verdict == "FAKE INFORMATION":
+            summary = f"🔴 FAKE INFORMATION — {contradictions} contradiction(s) detected. Trust score: {score:.0f}%. See correction below."
+        else:
+            summary = f"⚠️ UNCERTAIN — Answer could not be fully verified ({score:.0f}% trust). Treat with caution."
+
+        return AskAndVerifyResponse(
+            question=req.question,
+            ai_answer=ai_answer,
+            trust_score=score,
+            trust_label=analysis.trust_label,
+            verdict=verdict,
+            verdict_color=verdict_color,
+            summary=summary,
+            claims_checked=analysis.claims_checked or 0,
+            claims_verified=analysis.claims_verified or 0,
+            contradictions=contradictions,
+            suggested_correction=analysis.suggested_correction,
+            sources=analysis.sources or [],
+            latency_ms=round((time.time() - t0) * 1000, 2),
+        )
 
 external_verifier = ExternalAIVerifier()

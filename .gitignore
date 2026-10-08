@@ -21,7 +21,13 @@ frontend/dist/
 frontend/.tmp/
 .DS_Store
 *.log
+
+# Secrets — never commit real env files
 .env
 *.env
 *.env.*
 frontend/.env
+backend/.env
+
+# Keep the example template
+!.env.example

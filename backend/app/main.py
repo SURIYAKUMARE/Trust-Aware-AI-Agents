@@ -24,6 +24,8 @@ from app.schemas import (
     AnalyzeResponse,
     MultiAIConsensusRequest,
     MultiAIConsensusResponse,
+    AskAndVerifyRequest,
+    AskAndVerifyResponse,
 )
 from app.agent.trust_agent import trust_agent
 from app.agent.baseline_agent import baseline_agent
@@ -594,6 +596,23 @@ async def get_multi_ai_consensus(req: MultiAIConsensusRequest):
         return await multi_ai_consensus_engine.run_consensus(req.query, req.models_to_query)
     except Exception as e:
         logger.error(f"Error during multi-AI consensus evaluation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ask-and-verify", response_model=AskAndVerifyResponse)
+async def ask_and_verify(req: AskAndVerifyRequest):
+    """
+    Generate an AI answer to the user's question, then immediately verify
+    whether that answer is factually correct or wrong.
+
+    Returns the AI-generated answer alongside a trust score, verdict
+    (CORRECT / LIKELY CORRECT / UNCERTAIN / INCORRECT), and claim-level
+    evidence so the user can see exactly why the answer was judged that way.
+    """
+    try:
+        return await external_verifier.ask_and_verify(req)
+    except Exception as e:
+        logger.error(f"Error during ask-and-verify: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

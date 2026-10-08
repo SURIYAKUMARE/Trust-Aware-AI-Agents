@@ -308,8 +308,51 @@
       border-radius: 6px;
     }
 
-    /* Diagnostics Panel */
-    .diagnostics-header {
+    /* Ask & Verify */
+    #av-answer-box {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 6px;
+      padding: 9px;
+      font-size: 12px;
+      color: #e2e8f0;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      max-height: 140px;
+      overflow-y: auto;
+      display: none;
+      margin-top: 8px;
+    }
+    .av-verdict-bar {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .av-verdict-green  { background: rgba(16,185,129,0.12); border: 1px solid #10b981; color: #34d399; }
+    .av-verdict-amber  { background: rgba(245,158,11,0.12); border: 1px solid #f59e0b; color: #fbbf24; }
+    .av-verdict-red    { background: rgba(239,68,68,0.12);  border: 1px solid #ef4444; color: #f87171; }
+    .av-summary {
+      display: none;
+      font-size: 11px;
+      color: #94a3b8;
+      margin-top: 5px;
+      line-height: 1.4;
+    }
+    .av-correction {
+      display: none;
+      font-size: 11px;
+      color: #fca5a5;
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.35);
+      border-radius: 5px;
+      padding: 6px 8px;
+      margin-top: 6px;
+    }
       cursor: pointer;
       user-select: none;
       display: flex;
@@ -402,6 +445,31 @@
       <option value="research">Research / Academic Consensus</option>
       <option value="high_risk">High-Risk Safety Check</option>
     </select>
+  </div>
+
+  <!-- Card 1.5: Ask & Verify -->
+  <div class="card">
+    <div class="card-title">
+      <span>🤖 Ask &amp; Verify</span>
+      <span style="color: #34d399; font-size: 10px; font-weight: normal;">AI Answer + Fact Check</span>
+    </div>
+    <textarea id="av-question" rows="2" placeholder="Ask any question — TrustGuard answers it and checks if it's correct…"></textarea>
+    <button id="av-ask-btn" class="btn">
+      <span>🛡️</span> Ask &amp; Verify
+    </button>
+    <div id="av-error" class="alert-box alert-error"></div>
+
+    <!-- Generated answer -->
+    <div id="av-answer-box"></div>
+
+    <!-- Verdict banner -->
+    <div id="av-verdict-bar" class="av-verdict-bar"></div>
+
+    <!-- One-line summary -->
+    <div id="av-summary" class="av-summary"></div>
+
+    <!-- Correction (only when INCORRECT) -->
+    <div id="av-correction" class="av-correction"></div>
   </div>
 
   <!-- Card 2: Screen Capture Verification -->
