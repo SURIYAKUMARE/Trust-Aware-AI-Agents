@@ -26,6 +26,7 @@ export interface ModelSettings {
 }
 
 const ENV_GROQ_KEY = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GROQ_API_KEY) || '';
+const ENV_GEMINI_KEY = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GEMINI_API_KEY) || '';
 const SETTINGS_STORAGE_KEY = 'trustagent_model_settings';
 
 export function getStoredModelSettings(): ModelSettings {
@@ -36,14 +37,18 @@ export function getStoredModelSettings(): ModelSettings {
       if (!parsed.groqKey && ENV_GROQ_KEY) {
         parsed.groqKey = ENV_GROQ_KEY;
       }
+      if (!parsed.geminiKey && ENV_GEMINI_KEY) {
+        parsed.geminiKey = ENV_GEMINI_KEY;
+      }
       return parsed;
     }
   } catch (e) {
     console.error('Error reading settings from localStorage:', e);
   }
   return { 
-    provider: ENV_GROQ_KEY ? 'groq' : 'auto',
-    groqKey: ENV_GROQ_KEY || undefined 
+    provider: ENV_GROQ_KEY ? 'groq' : ENV_GEMINI_KEY ? 'gemini' : 'auto',
+    groqKey: ENV_GROQ_KEY || undefined,
+    geminiKey: ENV_GEMINI_KEY || undefined,
   };
 }
 
@@ -754,7 +759,11 @@ export class ClientTrustAgent {
     history?: Array<{ sender: 'user' | 'agent'; text: string }>,
     attachedFiles?: UploadedFile[]
   ): Promise<string> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const candidateModels = [
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash'
+    ];
     
     const contents: any[] = [];
     if (history && history.length > 0) {
@@ -781,24 +790,38 @@ export class ClientTrustAgent {
       contents,
       generationConfig: {
         temperature: 0.7,
-        maxOutputTokens: 1500,
+        maxOutputTokens: 2048,
       }
     };
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    let lastError: Error | null = null;
+    for (const model of candidateModels) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
 
-    if (!res.ok) {
-      throw new Error(`Gemini API responded with status ${res.status}: ${await res.text()}`);
+        if (!res.ok) {
+          const errText = await res.text();
+          if (res.status === 404) {
+            lastError = new Error(`Model ${model} not available: ${errText}`);
+            continue;
+          }
+          throw new Error(`Gemini API error ${res.status}: ${errText}`);
+        }
+
+        const data = await res.json();
+        const candidate = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (candidate) return candidate;
+      } catch (err: any) {
+        lastError = err;
+      }
     }
 
-    const data = await res.json();
-    const candidate = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!candidate) throw new Error('No content returned from Gemini');
-    return candidate;
+    throw lastError || new Error('All Gemini candidate models failed');
   }
 
   /** Call live OpenAI API directly from browser */
