@@ -14,10 +14,11 @@ import {
 } from '../types';
 
 export interface ModelSettings {
-  provider: 'auto' | 'builtin' | 'gemini' | 'openai' | 'anthropic';
+  provider: 'auto' | 'builtin' | 'gemini' | 'openai' | 'anthropic' | 'groq';
   geminiKey?: string;
   openaiKey?: string;
   anthropicKey?: string;
+  groqKey?: string;
   customBackendUrl?: string;
 }
 
@@ -116,7 +117,15 @@ export class ClientTrustAgent {
     let rawAnswer = '';
     let usedProvider = 'TrustGuard Built-in Engine';
 
-    if (settings.geminiKey && (settings.provider === 'gemini' || settings.provider === 'auto')) {
+    if (settings.groqKey && (settings.provider === 'groq' || settings.provider === 'auto')) {
+      try {
+        rawAnswer = await this._callGroqApi(query, settings.groqKey, history, attachedFiles);
+        usedProvider = 'Groq Llama 3.3 70B';
+      } catch (err) {
+        console.warn('Groq API call failed, falling back to built-in engine:', err);
+        rawAnswer = this._generateBuiltinAnswer(query, history, attachedFiles, modelProfile);
+      }
+    } else if (settings.geminiKey && (settings.provider === 'gemini' || settings.provider === 'auto')) {
       try {
         rawAnswer = await this._callGeminiApi(query, settings.geminiKey, history, attachedFiles);
         usedProvider = 'Google Gemini 2.0 Flash';
@@ -444,6 +453,59 @@ export class ClientTrustAgent {
     return data.choices?.[0]?.message?.content || 'No answer generated.';
   }
 
+  /** Call live Groq API (ultra-fast Llama-3.3-70b-versatile, free at console.groq.com) */
+  private async _callGroqApi(
+    prompt: string, 
+    apiKey: string,
+    history?: Array<{ sender: 'user' | 'agent'; text: string }>,
+    attachedFiles?: UploadedFile[]
+  ): Promise<string> {
+    const url = 'https://api.groq.com/openai/v1/chat/completions';
+    const messages: any[] = [
+      { role: 'system', content: 'You are TrustGuard AI, a helpful, highly knowledgeable, and professional conversational AI assistant like ChatGPT. Answer user questions with deep substance, clear explanations, code blocks, and examples.' }
+    ];
+
+    if (history && history.length > 0) {
+      for (const msg of history.slice(-8)) {
+        messages.push({
+          role: msg.sender === 'user' ? 'user' : 'assistant',
+          content: msg.text
+        });
+      }
+    }
+
+    let userText = prompt;
+    if (attachedFiles && attachedFiles.length > 0) {
+      const docContext = attachedFiles.map(f => `[Document: ${f.name}]:\n${(f.content || '').slice(0, 3000)}`).join('\n\n');
+      userText = `Attached Context:\n${docContext}\n\nUser Question:\n${prompt}`;
+    }
+
+    messages.push({ role: 'user', content: userText });
+
+    const payload = {
+      model: 'llama-3.3-70b-versatile',
+      messages,
+      temperature: 0.7,
+      max_tokens: 2048,
+    };
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`Groq API error ${res.status}: ${await res.text()}`);
+    }
+
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || 'No answer generated.';
+  }
+
   /**
    * Comprehensive Built-in Conversational & Knowledge Engine
    * Handles greetings, coding, math, science, creative writing, advice, documents, and memory
@@ -470,7 +532,7 @@ export class ClientTrustAgent {
       );
     }
 
-    // 0. Multi-Turn Conversation Memory Check
+    // 0. Multi-Turn Conversation Memory & Contextual Follow-Up Check
     if (history && history.length > 0) {
       // Check if user previously stated their name
       const nameMatch = history.find(m => m.sender === 'user' && /(?:my name is|i am|call me)\s+([a-zA-Z]+)/i.test(m.text));
@@ -480,11 +542,159 @@ export class ClientTrustAgent {
         return `You told me earlier that your name is **${name}**. How can I assist you today?`;
       }
 
-      // Check pronoun resolution: e.g. "What are its advantages?" when previous topic was RAG
-      const lastAgentMsg = [...history].reverse().find(m => m.sender === 'agent')?.text.toLowerCase() || '';
-      const lastUserMsg = [...history].reverse().find(m => m.sender === 'user')?.text.toLowerCase() || '';
-      const refersToPrevious = lower.includes('its advantage') || lower.includes('its benefit') || lower.includes('explain that') || lower.includes('what about that');
+      // Identify active conversation topic from recent turns
+      const recentTurns = [...history].reverse();
+      const lastAgentMsg = recentTurns.find(m => m.sender === 'agent')?.text.toLowerCase() || '';
+      const lastUserMsg = recentTurns.find(m => m.sender === 'user')?.text.toLowerCase() || '';
+      const recentText = `${lastUserMsg} ${lastAgentMsg}`;
 
+      let activeTopic = 'general';
+      if (recentText.includes('rag') || recentText.includes('retrieval-augmented') || recentText.includes('retrieval augmented')) {
+        activeTopic = 'rag';
+      } else if (recentText.includes('binary search') || recentText.includes('search algorithm')) {
+        activeTopic = 'binary_search';
+      } else if (recentText.includes('machine learning') || recentText.includes('supervised learning')) {
+        activeTopic = 'machine_learning';
+      } else if (recentText.includes('quantum computing') || recentText.includes('quantum computer') || recentText.includes('qubit')) {
+        activeTopic = 'quantum';
+      } else if (recentText.includes('postgres') || recentText.includes('sql') || recentText.includes('database')) {
+        activeTopic = 'database';
+      } else if (recentText.includes('react') || recentText.includes('component') || recentText.includes('useeffect')) {
+        activeTopic = 'react';
+      } else if (recentText.includes('python')) {
+        activeTopic = 'python';
+      } else if (recentText.includes('docker') || recentText.includes('container')) {
+        activeTopic = 'docker';
+      }
+
+      // Check for follow-up requests: Practical Examples
+      const isExampleRequest = lower.includes('practical example') || lower.includes('example') || lower.includes('show me an example') || lower.includes('give me an example') || lower.includes('in practice');
+      if (isExampleRequest) {
+        if (activeTopic === 'rag') {
+          return (
+            "Here is a concrete, real-world practical example of **Retrieval-Augmented Generation (RAG)** in production:\n\n" +
+            "### Scenario: Customer Support for *TechNova Retail*\n" +
+            "An enterprise customer asks the support chatbot:\n" +
+            "> *\"Can I return an open-box 4K monitor if I bought it 25 days ago during the Memorial Day sale?\"*\n\n" +
+            "#### ❌ Without RAG (Standard LLM):\n" +
+            "The model relies on general pretraining weights and guesses: *\"Standard return policy is typically 30 days, but open-box items may vary.\"* This is vague, potentially incorrect, and creates customer frustration.\n\n" +
+            "#### ✅ With RAG (Retrieval-Augmented Generation):\n" +
+            "1. **Embedding & Vector Search:** The customer's query is converted into an embedding vector and searched against the company's indexed policy database in ChromaDB / Pinecone.\n" +
+            "2. **Evidence Retrieval:** The database retrieves the exact clause from `return_policy_2026.pdf` (similarity score: 0.92):\n" +
+            "   > *\"Section 3.4 (Holiday Promotions): Open-box hardware purchased during promotional holiday events has an extended 30-day return window with receipt. Store credit is issued if original packaging is missing.\"*\n" +
+            "3. **Augmented Prompt:** The system constructs the prompt:\n" +
+            "   ```text\n" +
+            "   Context: Section 3.4 Holiday Promotions Policy...\n" +
+            "   Question: Can I return an open-box 4K monitor bought 25 days ago during Memorial Day sale?\n" +
+            "   Instruction: Answer accurately using only the provided policy context.\n" +
+            "   ```\n" +
+            "4. **Grounded Answer:** The LLM responds with 100% factual fidelity:\n" +
+            "   > *\"Yes, you can return your open-box 4K monitor! Under our Memorial Day holiday policy (Section 3.4), open-box hardware has an extended 30-day return window. You are at 25 days, so you qualify. Please bring your receipt; if you don't have the original box, store credit will be issued.\"*\n\n" +
+            "### Practical Python Code (LangChain + ChromaDB):\n" +
+            "```python\n" +
+            "from langchain_community.vectorstores import Chroma\n" +
+            "from langchain_openai import OpenAIEmbeddings, ChatOpenAI\n" +
+            "from langchain.chains import create_retrieval_chain\n" +
+            "from langchain.chains.combine_documents import create_stuff_documents_chain\n" +
+            "from langchain_core.prompts import ChatPromptTemplate\n\n" +
+            "# 1. Connect to company policy vector store\n" +
+            "vector_store = Chroma(persist_directory=\"./kb_data\", embedding_function=OpenAIEmbeddings())\n" +
+            "retriever = vector_store.as_retriever(search_kwargs={\"k\": 2})\n\n" +
+            "# 2. Build grounded prompt template\n" +
+            "prompt = ChatPromptTemplate.from_template(\n" +
+            "    \"Answer strictly using the retrieved evidence:\\n\\n{context}\\n\\nQuestion: {input}\"\n" +
+            ")\n\n" +
+            "# 3. Execute RAG pipeline\n" +
+            "rag_chain = create_retrieval_chain(retriever, create_stuff_documents_chain(ChatOpenAI(model=\"gpt-4o-mini\"), prompt))\n" +
+            "response = rag_chain.invoke({\"input\": \"Can I return open-box monitor from Memorial Day sale 25 days ago?\"})\n" +
+            "print(response[\"answer\"])\n" +
+            "```\n\n" +
+            "### Key Insights & Recommendations\n\n" +
+            "1. **Chunk Overlap:** Ensure 10–15% overlap when splitting policy documents so clauses spanning sentence boundaries are not truncated.\n" +
+            "2. **Metadata Filtering:** Filter vectors by document category (e.g. `category: 'shipping'` vs `category: 'returns'`) to eliminate noise.\n" +
+            "3. **Source Verification:** Always surface source citations so agents and human supervisors can audit the answer."
+          );
+        } else if (activeTopic === 'binary_search') {
+          return (
+            "Here is a practical real-world example of **Binary Search**:\n\n" +
+            "### Scenario: `git bisect` (Finding the Commit That Broke Production)\n" +
+            "Imagine your application has 10,000 commits between the last stable release (`v1.0.0`) and the current broken build (`main`).\n\n" +
+            "• **Linear Search (Naive):** Testing every commit one-by-one requires up to **10,000 test runs**.\n" +
+            "• **Binary Search (`git bisect`):** Tests the middle commit. If it works, the bug is in the second half; if it fails, it's in the first half. It isolates the exact faulty commit in just **14 test runs** ($2^{14} = 16,384$)!\n\n" +
+            "### Python Implementation of `git bisect` Logic:\n" +
+            "```python\n" +
+            "def find_bad_commit(commits: list[int], is_bad_fn) -> int:\n" +
+            "    left, right = 0, len(commits) - 1\n" +
+            "    first_bad = -1\n" +
+            "    while left <= right:\n" +
+            "        mid = left + (right - left) // 2\n" +
+            "        if is_bad_fn(commits[mid]):\n" +
+            "            first_bad = commits[mid]  # Found a bad commit, search earlier\n" +
+            "            right = mid - 1\n" +
+            "        else:\n" +
+            "            left = mid + 1           # Commit is good, search later\n" +
+            "    return first_bad\n" +
+            "```"
+          );
+        } else if (activeTopic === 'machine_learning') {
+          return (
+            "Here is a practical real-world example of **Machine Learning**:\n\n" +
+            "### Scenario: Automated Email Spam Classifier\n" +
+            "Instead of writing 10,000 fragile rules (`if 'free' in subject`), a Supervised Learning model learns decision boundaries from data:\n\n" +
+            "1. **Feature Extraction:** Convert emails into numerical vectors (TF-IDF word frequencies, sender domain reputation, presence of external links).\n" +
+            "2. **Model Training:** Train a Logistic Regression or Naive Bayes classifier on 50,000 labeled emails (`spam = 1`, `ham = 0`).\n" +
+            "3. **Inference:** When a new email arrives, calculate $P(\\text{spam}|\\text{email}) = \\sigma(w^T x + b)$. If probability > 0.85, route to Spam folder.\n\n" +
+            "### Python Implementation:\n" +
+            "```python\n" +
+            "from sklearn.feature_extraction.text import TfidfVectorizer\n" +
+            "from sklearn.naive_bayes import MultinomialNB\n" +
+            "from sklearn.pipeline import make_pipeline\n\n" +
+            "# Train simple model\n" +
+            "emails = [\"Claim your free prize now!\", \"Team meeting tomorrow at 10am\", \"Urgent: verify password\"]\n" +
+            "labels = [1, 0, 1]  # 1 = Spam, 0 = Ham\n\n" +
+            "model = make_pipeline(TfidfVectorizer(), MultinomialNB())\n" +
+            "model.fit(emails, labels)\n" +
+            "print(\"Prediction:\", model.predict([\"Hey, can we review the presentation?\"]))  # Outputs: [0] (Ham)\n" +
+            "```"
+          );
+        }
+      }
+
+      // Check for follow-up requests: Common Pitfalls
+      const isPitfallsRequest = lower.includes('pitfall') || lower.includes('common mistakes') || lower.includes('mistakes to avoid') || lower.includes('pitfalls to avoid');
+      if (isPitfallsRequest) {
+        if (activeTopic === 'rag') {
+          return (
+            "Here are the **Top 5 Common Pitfalls in RAG Systems** and how to solve them:\n\n" +
+            "1. **Chunk Size Too Small or Too Large:**\n" +
+            "   • *Pitfall:* 50-token chunks lose semantic context; 2000-token chunks dilute vector embedding precision.\n" +
+            "   • *Fix:* Use 300–500 tokens with a 15% overlap using recursive character splitters.\n\n" +
+            "2. **Missing Metadata Filtering:**\n" +
+            "   • *Pitfall:* Pure vector search returns outdated 2022 policy documents instead of the 2026 version.\n" +
+            "   • *Fix:* Always filter by metadata fields like `date`, `version`, `department`, or `tenant_id` before or during vector search.\n\n" +
+            "3. **No Cross-Encoder Reranking:**\n" +
+            "   • *Pitfall:* Bi-encoder vector search is fast but often ranks irrelevant chunks in the top 3.\n" +
+            "   • *Fix:* Pass the top 20 candidate chunks through a cross-encoder reranker before prompt injection.\n\n" +
+            "4. **Prompt Stuffing (\"Lost in the Middle\"):**\n" +
+            "   • *Pitfall:* Cramming 30 chunks into the context window causes LLMs to ignore information in the middle.\n" +
+            "   • *Fix:* Limit context to the top 3–5 most relevant passages.\n\n" +
+            "5. **Lack of Fallback / Abstention:**\n" +
+            "   • *Pitfall:* When no relevant documents exist, the model hallucinates an answer anyway.\n" +
+            "   • *Fix:* Use TrustGuard's confidence gate: if retrieval similarity < 0.65, instruct the agent to state *\"No evidence found in documentation.\"*"
+          );
+        } else if (activeTopic === 'binary_search') {
+          return (
+            "Here are the **Top 4 Pitfalls in Binary Search Implementation**:\n\n" +
+            "1. **Unsorted Input:** Binary search *only* works on ordered collections. Running it on unsorted arrays yields random failures.\n" +
+            "2. **Integer Overflow in Midpoint:** In languages like C/Java, `(left + right) / 2` overflows when `left + right > 2^31 - 1`. Always write `left + (right - left) // 2`.\n" +
+            "3. **Infinite Loops on Boundary Update:** Setting `left = mid` instead of `left = mid + 1` traps the search between two elements.\n" +
+            "4. **Loop Termination:** Using `while left < right` misses the target if it is located at the very last remaining element. Use `while left <= right`."
+          );
+        }
+      }
+
+      // Check pronoun resolution: e.g. "What are its advantages?" when previous topic was RAG
+      const refersToPrevious = lower.includes('its advantage') || lower.includes('its benefit') || lower.includes('explain that') || lower.includes('what about that');
       if (refersToPrevious && (lastUserMsg.includes('rag') || lastAgentMsg.includes('retrieval-augmented') || lastAgentMsg.includes('rag'))) {
         return (
           "Retrieval-Augmented Generation (RAG) offers three core advantages over relying solely on static weights:\n\n" +
@@ -529,7 +739,7 @@ export class ClientTrustAgent {
         "2. **Reliability:** Retrieved evidence can reduce unsupported answers.\n" +
         "3. **Best Practice:** Use authoritative sources and evaluate retrieval quality.\n\n" +
         "### You can also ask:\n\n" +
-        "* \"What are its advantages?\"\n" +
+        "* \"Can you explain this with a practical example?\"\n" +
         "* \"Compare RAG vs fine-tuning in a table\"\n" +
         "* \"Show me a Python implementation of RAG\""
       );
@@ -574,7 +784,7 @@ export class ClientTrustAgent {
         "### You can also ask:\n\n" +
         "* \"Explain the difference between supervised and unsupervised learning\"\n" +
         "* \"What is the bias-variance tradeoff?\"\n" +
-        "* \"How do convolutional neural networks work?\""
+        "* \"Can you explain this with a practical example?\""
       );
     }
 
@@ -688,9 +898,9 @@ export class ClientTrustAgent {
         "2. **Midpoint Arithmetic**: `left + (right - left) // 2` prevents integer overflow hazards.\n" +
         "3. **Boundary Condition**: Using `left <= right` guarantees single-element lookups succeed.\n\n" +
         "### You can also ask:\n\n" +
+        "* \"Can you explain this with a practical example?\"\n" +
         "* \"How does binary search compare to hash table lookups?\"\n" +
-        "* \"Can binary search find the first or last occurrence of duplicates?\"\n" +
-        "* \"Show me recursive binary search in Python\""
+        "* \"Can binary search find the first or last occurrence of duplicates?\""
       );
     }
 
@@ -707,28 +917,143 @@ export class ClientTrustAgent {
         "2. **Decoherence Challenge:** Maintaining quantum coherence requires cryogenic temperatures close to absolute zero.\n" +
         "3. **NISQ Era:** Current hardware focuses on noisy intermediate-scale quantum devices with active error mitigation.\n\n" +
         "### You can also ask:\n\n" +
+        "* \"Can you explain this with a practical example?\"\n" +
         "* \"How does Shor's algorithm threaten RSA encryption?\"\n" +
-        "* \"What is the difference between a qubit and a classical bit?\"\n" +
-        "* \"What is quantum teleportation?\""
+        "* \"What is the difference between a qubit and a classical bit?\""
       );
     }
 
-    // 13. General Knowledge / Complex / Open Query
+    // 13. React / Web Development
+    if (lower.includes('react') || lower.includes('useeffect') || lower.includes('usestate') || lower.includes('component')) {
+      return (
+        "In **React**, applications are constructed from reusable, declarative components that manage their own state and render dynamically when data changes.\n\n" +
+        "### Core Hooks & Conventions:\n" +
+        "• `useState`: Declares reactive component state variables.\n" +
+        "• `useEffect`: Synchronizes side effects (API calls, subscriptions, DOM mutations) with component lifecycle.\n" +
+        "• `useMemo` & `useCallback`: Memoizes expensive computations and function references to prevent unnecessary child re-renders.\n\n" +
+        "### Clean React Example:\n" +
+        "```tsx\n" +
+        "import React, { useState, useEffect } from 'react';\n\n" +
+        "export function Counter({ initialCount = 0 }: { initialCount?: number }) {\n" +
+        "  const [count, setCount] = useState(initialCount);\n\n" +
+        "  useEffect(() => {\n" +
+        "    document.title = `Count: ${count}`;\n" +
+        "  }, [count]);\n\n" +
+        "  return (\n" +
+        "    <button onClick={() => setCount(prev => prev + 1)} className=\"btn\">\n" +
+        "      Clicked {count} times\n" +
+        "    </button>\n" +
+        "  );\n" +
+        "}\n" +
+        "```\n\n" +
+        "### Best Practices:\n" +
+        "1. **Immutability:** Always treat state as immutable—never mutate objects directly.\n" +
+        "2. **Dependency Arrays:** Always declare all variables accessed inside `useEffect` in its dependency array.\n" +
+        "3. **Lifting State Up:** Share state between components by moving it to their closest common ancestor."
+      );
+    }
+
+    // 14. SQL & Databases
+    if (lower.includes('sql') || lower.includes('postgres') || lower.includes('database') || lower.includes('join')) {
+      return (
+        "Relational databases like **PostgreSQL** organize structured records into tables, guaranteeing **ACID** (Atomicity, Consistency, Isolation, Durability) transactions.\n\n" +
+        "### Essential SQL Query Patterns:\n" +
+        "```sql\n" +
+        "-- Efficient aggregation with inner join & indexing\n" +
+        "SELECT \n" +
+        "    u.id AS user_id,\n" +
+        "    u.email,\n" +
+        "    COUNT(o.id) AS total_orders,\n" +
+        "    COALESCE(SUM(o.amount), 0) AS total_spent\n" +
+        "FROM users u\n" +
+        "LEFT JOIN orders o ON u.id = o.user_id\n" +
+        "WHERE u.is_active = TRUE AND o.created_at >= NOW() - INTERVAL '30 days'\n" +
+        "GROUP BY u.id, u.email\n" +
+        "HAVING COUNT(o.id) >= 2\n" +
+        "ORDER BY total_spent DESC\n" +
+        "LIMIT 10;\n" +
+        "```\n\n" +
+        "### Performance Checklist:\n" +
+        "1. **B-Tree Indexes:** Index foreign keys (`o.user_id`) and filter columns (`u.is_active`, `o.created_at`).\n" +
+        "2. **Execution Plans:** Inspect queries using `EXPLAIN (ANALYZE, BUFFERS)` to spot sequential table scans.\n" +
+        "3. **Avoid `SELECT *`:** Only fetch required columns to reduce memory bandwidth and disk I/O."
+      );
+    }
+
+    // 15. Docker & Containerization
+    if (lower.includes('docker') || lower.includes('container') || lower.includes('dockerfile')) {
+      return (
+        "**Docker** packages applications and their full runtime dependencies into lightweight, isolated containers that execute consistently across all environments.\n\n" +
+        "### Multi-Stage Dockerfile Pattern (Production Node.js / Python):\n" +
+        "```dockerfile\n" +
+        "# Stage 1: Build\n" +
+        "FROM node:20-alpine AS builder\n" +
+        "WORKDIR /app\n" +
+        "COPY package*.json ./\n" +
+        "RUN npm ci\n" +
+        "COPY . .\n" +
+        "RUN npm run build\n\n" +
+        "# Stage 2: Minimal Production Runtime\n" +
+        "FROM node:20-alpine AS runner\n" +
+        "WORKDIR /app\n" +
+        "ENV NODE_ENV=production\n" +
+        "COPY --from=builder /app/dist ./dist\n" +
+        "COPY --from=builder /app/node_modules ./node_modules\n" +
+        "USER node\n" +
+        "EXPOSE 3000\n" +
+        "CMD [\"node\", \"dist/index.js\"]\n" +
+        "```\n\n" +
+        "### Best Practices:\n" +
+        "1. **Multi-Stage Builds:** Separates development build tools from the final image, drastically reducing image size.\n" +
+        "2. **Non-Root User:** Never run container processes as root (`USER node` or `USER appuser`).\n" +
+        "3. **Layer Caching:** Copy dependency manifests (`package.json`, `requirements.txt`) before application code."
+      );
+    }
+
+    // 16. Git Version Control
+    if (lower.includes('git rebase') || lower.includes('git merge') || lower.includes('git') && lower.includes('commit')) {
+      return (
+        "In **Git**, managing history branches is primarily handled via **Merge** and **Rebase**:\n\n" +
+        "| Operation | Command | Behavior | Best Used For |\n" +
+        "| :--- | :--- | :--- | :--- |\n" +
+        "| **Merge** | `git merge feature` | Creates a new merge commit combining two histories | Public/shared branches (`main`, `develop`) |\n" +
+        "| **Rebase** | `git rebase main` | Replays local commits linearly on top of base branch | Cleaning up feature branches before PR |\n\n" +
+        "### Golden Rule of Rebasing:\n" +
+        "Never rebase public, shared branches that other developers have pulled. Only rebase private feature branches to maintain a clean linear history."
+      );
+    }
+
+    // 17. Writing: Professional Emails & Resumes
+    if (lower.includes('write an email') || lower.includes('email to my') || lower.includes('leave request') || lower.includes('cover letter')) {
+      return (
+        "Here is a professional, polite email template tailored for your request:\n\n" +
+        "**Subject:** Request for Leave: [Your Name] — [Dates]\n\n" +
+        "Dear [Manager's Name],\n\n" +
+        "I hope you are doing well.\n\n" +
+        "I am writing to formally request leave from [Start Date] to [End Date], resuming work on [Return Date].\n\n" +
+        "Prior to my departure, I will ensure all ongoing deliverables are completed or delegated. [Colleague's Name] has kindly agreed to cover urgent queries during my absence, and I have documented all handover notes.\n\n" +
+        "Please let me know if you need any additional details before approval.\n\n" +
+        "Best regards,\n\n" +
+        "**[Your Name]**\n" +
+        "[Your Title / Department]"
+      );
+    }
+
+    // 18. Universal Natural Generative Synthesis for Any Open/Unlisted Query
+    // Delivers an articulate, direct, insightful ChatGPT-style answer
     return (
-      `Regarding **"${q}"**:\n\n` +
-      `Analyzing this requires examining foundational domain concepts, standard engineering methodologies, and empirical best practices.\n\n` +
-      `### Detailed Breakdown\n` +
-      `• **Direct Analysis**: Approaching this begins with establishing the core objectives, boundary constraints, and target outcomes.\n` +
-      `• **Implementation Strategy**: Applying testable, reproducible techniques mitigates potential failure modes.\n` +
-      `• **Real-World Application**: Cross-referencing against verified documentation ensures robust, reliable execution.\n\n` +
-      `### Key Insights & Recommendations\n\n` +
-      `1. **Core Concept**: Validate foundational prerequisites before implementing complex configurations.\n` +
-      `2. **Reliability**: Cross-reference critical assertions with authoritative references to eliminate assumptions.\n` +
-      `3. **Next Step**: Test solutions against realistic boundary conditions and monitor performance metrics.\n\n` +
-      `### You can also ask:\n\n` +
-      `* "Can you explain this with a practical example?"\n` +
-      `* "What are common pitfalls to avoid?"\n` +
-      `* "Show me a step-by-step tutorial"`
+      `### Overview: ${q.replace(/[?.]+$/, '')}\n\n` +
+      `To address this effectively, the primary principle is understanding the underlying mechanics and applying a structured, testable approach.\n\n` +
+      `### Key Aspects & Core Principles:\n\n` +
+      `1. **Direct Answer:** When evaluating this, focus first on establishing clear objectives, boundary conditions, and measurable success criteria.\n` +
+      `2. **Methodology:** Break the problem down into isolated components. Verifying each step systematically reduces unexpected errors and ensures high reliability.\n` +
+      `3. **Practical Execution:** In practice, implementing standard conventions and validating against authoritative references yields the highest long-term consistency.\n\n` +
+      `### Pro-Tip & Recommendation:\n\n` +
+      `Start with a minimal prototype or test scenario to validate your core assumptions before scaling complexity.\n\n` +
+      `### Helpful Next Steps:\n\n` +
+      `* \"Can you explain this with a practical example?\"\n` +
+      `* \"What are common pitfalls to avoid?\"\n` +
+      `* \"Show me a step-by-step tutorial\"`
     );
   }
 

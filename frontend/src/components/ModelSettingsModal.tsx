@@ -30,10 +30,12 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
   onClose,
   onSave,
 }) => {
-  const [provider, setProvider] = useState<'auto' | 'builtin' | 'gemini' | 'openai'>('builtin');
+  const [provider, setProvider] = useState<'auto' | 'builtin' | 'groq' | 'gemini' | 'openai'>('builtin');
+  const [groqKey, setGroqKey] = useState('');
   const [geminiKey, setGeminiKey] = useState('');
   const [openaiKey, setOpenaiKey] = useState('');
   const [customBackendUrl, setCustomBackendUrl] = useState('');
+  const [showGroqKey, setShowGroqKey] = useState(false);
   const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [showOpenaiKey, setShowOpenaiKey] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -42,6 +44,7 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
     if (isOpen) {
       const s = getStoredModelSettings();
       setProvider((s.provider as any) || 'builtin');
+      setGroqKey(s.groqKey || '');
       setGeminiKey(s.geminiKey || '');
       setOpenaiKey(s.openaiKey || '');
       setCustomBackendUrl(s.customBackendUrl || '');
@@ -54,6 +57,7 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
   const handleSave = () => {
     const newSettings: ModelSettings = {
       provider,
+      groqKey: groqKey.trim() || undefined,
       geminiKey: geminiKey.trim() || undefined,
       openaiKey: openaiKey.trim() || undefined,
       customBackendUrl: customBackendUrl.trim() || undefined,
@@ -70,6 +74,7 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
   const handleClear = () => {
     saveModelSettings({ provider: 'builtin' });
     setProvider('builtin');
+    setGroqKey('');
     setGeminiKey('');
     setOpenaiKey('');
     setCustomBackendUrl('');
@@ -139,6 +144,76 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
                 {provider === 'builtin' && <Check className="w-3 h-3 stroke-[3]" />}
               </div>
             </div>
+          </div>
+
+          {/* Option: Groq (Llama 3.3 70B - Ultra Fast & Free API) */}
+          <div
+            onClick={() => setProvider('groq')}
+            className={`p-4 rounded-xl border cursor-pointer transition-all ${
+              provider === 'groq'
+                ? 'bg-amber-950/40 border-amber-500 shadow-md shadow-amber-500/10'
+                : 'bg-slate-950/50 border-slate-800 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-amber-950/60 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-white">Groq — Llama 3.3 70B</span>
+                    <span className="text-[10px] bg-amber-950 border border-amber-500/30 text-amber-300 font-mono px-2 py-0.5 rounded-full font-semibold">
+                      Fastest • Free Tier Available
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    ChatGPT-grade reasoning powered by Meta's Llama 3.3 70B running on Groq LPU inference (&gt;300 tokens/sec).
+                  </p>
+                </div>
+              </div>
+              <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 mt-1 ${
+                provider === 'groq' ? 'border-amber-500 bg-amber-600 text-white' : 'border-slate-700'
+              }`}>
+                {provider === 'groq' && <Check className="w-3 h-3 stroke-[3]" />}
+              </div>
+            </div>
+
+            {provider === 'groq' && (
+              <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-2" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-300 font-medium flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5 text-amber-400" />
+                    Groq API Key:
+                  </span>
+                  <a
+                    href="https://console.groq.com/keys"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-amber-400 hover:underline flex items-center gap-1 text-[11px]"
+                  >
+                    <span>Get free key</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showGroqKey ? 'text' : 'password'}
+                    value={groqKey}
+                    onChange={(e) => setGroqKey(e.target.value)}
+                    placeholder="gsk_..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono pr-9"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowGroqKey(!showGroqKey)}
+                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-white"
+                  >
+                    {showGroqKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Option 2: Google Gemini 2.0 Flash */}

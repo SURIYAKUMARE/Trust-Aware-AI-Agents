@@ -780,24 +780,214 @@ class LLMClient:
                 "2. *Authoritative Multi-Source Documentation*"
             )
 
-        # 13. General Knowledge, Technical, College, or Open Questions: Adaptive structure
-        else:
+        # 13. Contextual Follow-Up: Practical Example
+        elif any(phrase in lower_q for phrase in ["practical example", "real-world example", "give me an example", "show an example", "example with code"]):
+            # Detect topic from prompt/context
+            if any(k in lower for k in ["rag", "retrieval"]):
+                return (
+                    "### Practical Example: Customer Support RAG System\n\n"
+                    "Here is a production scenario: An enterprise company has 10,000 PDF user manuals and needs an AI agent to answer customer questions accurately without hallucinations.\n\n"
+                    "```python\n"
+                    "from langchain_community.document_loaders import PyPDFLoader\n"
+                    "from langchain_text_splitters import RecursiveCharacterTextSplitter\n"
+                    "from langchain_community.vectorstores import Chroma\n"
+                    "from langchain_openai import OpenAIEmbeddings, ChatOpenAI\n"
+                    "from langchain.chains import create_retrieval_chain\n"
+                    "from langchain.chains.combine_documents import create_stuff_documents_chain\n"
+                    "from langchain_core.prompts import ChatPromptTemplate\n\n"
+                    "# 1. Ingest & Chunk Documents\n"
+                    "loader = PyPDFLoader('handbook.pdf')\n"
+                    "docs = loader.load()\n"
+                    "splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)\n"
+                    "chunks = splitter.split_documents(docs)\n\n"
+                    "# 2. Vector Embeddings & Storage\n"
+                    "vectorstore = Chroma.from_documents(chunks, OpenAIEmbeddings())\n"
+                    "retriever = vectorstore.as_retriever(search_kwargs={'k': 3})\n\n"
+                    "# 3. Grounded Generation Chain\n"
+                    "prompt = ChatPromptTemplate.from_messages([\n"
+                    "    ('system', 'Answer ONLY based on the provided context. If unknown, state unverified: {context}'),\n"
+                    "    ('human', '{input}')\n"
+                    "])\n"
+                    "chain = create_retrieval_chain(retriever, create_stuff_documents_chain(ChatOpenAI(model='gpt-4o'), prompt))\n"
+                    "res = chain.invoke({'input': 'What is the return policy window?'})\n"
+                    "print(res['answer'])\n"
+                    "```\n\n"
+                    "### How This Solves Hallucinations:\n"
+                    "1. The LLM only sees verified text chunks from `handbook.pdf`.\n"
+                    "2. If the policy is not in the text, the strict system prompt prevents speculative answers."
+                )
+            elif any(k in lower for k in ["binary search", "search"]):
+                return (
+                    "### Practical Example: `git bisect` (Binary Search in Real Life)\n\n"
+                    "A classic real-world application of binary search is **`git bisect`**, used by software engineers to find which commit introduced a bug among thousands of commits in $O(\\log n)$ steps.\n\n"
+                    "```bash\n"
+                    "# Start automated binary search over commit history\n"
+                    "git bisect start\n"
+                    "git bisect bad                 # Current commit is broken\n"
+                    "git bisect good v1.0.0          # Last known working release\n\n"
+                    "# Git checks out the midpoint commit automatically (e.g. commit 512 of 1024)\n"
+                    "# You run tests: if passing -> 'git bisect good', if failing -> 'git bisect bad'\n"
+                    "# In just 10 checks (log2(1024)), Git pinpoints the exact culprit commit!\n"
+                    "```\n\n"
+                    "### Why It Matters:\n"
+                    "Linear checking would require testing up to 1,024 individual commits. Binary search resolves the exact breaking commit in at most **10 test runs**."
+                )
+            elif any(k in lower for k in ["machine learning", "ml", "classifier"]):
+                return (
+                    "### Practical Example: Production Spam Detection Classifier\n\n"
+                    "Here is a complete, minimal supervised classification pipeline using TF-IDF and Naive Bayes:\n\n"
+                    "```python\n"
+                    "from sklearn.feature_extraction.text import TfidfVectorizer\n"
+                    "from sklearn.naive_bayes import MultinomialNB\n"
+                    "from sklearn.pipeline import make_pipeline\n\n"
+                    "# Training dataset\n"
+                    "emails = [\n"
+                    "    'Claim your free prize now!',\n"
+                    "    'Team standup meeting at 10am tomorrow',\n"
+                    "    'Urgent: your account has been compromised, click here',\n"
+                    "    'Review the updated project roadmap attached'\n"
+                    "]\n"
+                    "labels = ['spam', 'ham', 'spam', 'ham']\n\n"
+                    "# Create & train pipeline\n"
+                    "model = make_pipeline(TfidfVectorizer(), MultinomialNB())\n"
+                    "model.fit(emails, labels)\n\n"
+                    "# Real-time inference\n"
+                    "test_email = ['Meeting notes from yesterday are ready']\n"
+                    "prediction = model.predict(test_email)\n"
+                    "print(f'Classification: {prediction[0]}')  # Outputs: ham\n"
+                    "```"
+                )
+            else:
+                return (
+                    f"### Practical Real-World Example\n\n"
+                    f"To see how this applies in a production setting:\n\n"
+                    "1. **Baseline Challenge:** Teams frequently encounter edge cases when deploying systems without strict validation or observability.\n"
+                    "2. **Implementation Architecture:**\n"
+                    "   - Input preprocessing and parameter validation\n"
+                    "   - Core execution engine with fallback handling\n"
+                    "   - Real-time logging and metric telemetry\n"
+                    "3. **Outcome:** Adopting a modular, testable pipeline reduces production regressions by over 70% and enables instant debugging when failures occur."
+                )
+
+        # 14. Contextual Follow-Up: Pitfalls & Common Mistakes
+        elif any(phrase in lower_q for phrase in ["pitfalls", "common mistakes", "what to avoid", "mistakes to avoid"]):
             return (
-                f"Regarding **{clean_q}**:\n\n"
-                "The core principles involve analyzing the fundamental domain mechanisms, applying standard best practices, "
-                "and verifying conclusions against empirical evidence.\n\n"
-                "### Analysis & Breakdown\n\n"
-                "• **Direct Answer:** Approaching this systematically requires identifying the primary objectives and constraints first.\n"
-                "• **Implementation Details:** Applying structured methodologies ensures reproducible results and reduces edge-case failures.\n"
-                "• **Practical Application:** In real-world environments, validating assumptions with testable metrics leads to reliable performance.\n\n"
+                "### Top 5 Common Pitfalls & How to Avoid Them\n\n"
+                "1. **Skipping Boundary Condition Testing**: Assuming ideal input states causes off-by-one errors and uncaught exceptions.\n"
+                "   • *Fix:* Always write unit tests for empty arrays, null values, and maximum threshold bounds.\n\n"
+                "2. **Premature Optimization**: Spending days optimizing micro-operations before profiling system bottlenecks.\n"
+                "   • *Fix:* Profile first using telemetry and flamegraphs; optimize only verified hotspots.\n\n"
+                "3. **Coupled Dependencies**: Hardcoding external services or database connections directly inside business logic.\n"
+                "   • *Fix:* Use dependency injection and clear interface contracts.\n\n"
+                "4. **Silent Error Swallowing**: Using empty `catch` blocks that hide underlying root causes.\n"
+                "   • *Fix:* Always log error context with stack traces and return meaningful status codes.\n\n"
+                "5. **Lack of Calibrated Confidence**: Treating probabilistic AI outputs as infallible deterministic facts.\n"
+                "   • *Fix:* Use confidence estimation, atomic verification, and human escalation for critical actions."
+            )
+
+        # 15. Contextual Follow-Up: Step-by-Step Breakdown / Tutorial
+        elif any(phrase in lower_q for phrase in ["step-by-step", "tutorial", "step by step", "how to implement"]):
+            return (
+                "### Step-by-Step Implementation Guide\n\n"
+                "Here is the recommended 5-step roadmap:\n\n"
+                "1. **Step 1: Environment & Dependency Setup**\n"
+                "   Establish clean virtual environments and lock dependency versions in `requirements.txt` or `package.json`.\n\n"
+                "2. **Step 2: Define Core Data Structures & Interfaces**\n"
+                "   Create typed schemas (e.g. Pydantic models / TypeScript interfaces) to enforce strict contracts.\n\n"
+                "3. **Step 3: Implement Core Business Logic**\n"
+                "   Write modular functions with single responsibilities and clear documentation.\n\n"
+                "4. **Step 4: Integrate Automated Tests & Edge Cases**\n"
+                "   Build comprehensive unit and integration tests covering happy paths and failure scenarios.\n\n"
+                "5. **Step 5: Deployment & Continuous Monitoring**\n"
+                "   Deploy behind health-checked endpoints and configure alert thresholds for error rates and latency."
+            )
+
+        # 16. Web & Frontend (React, Components, Hooks)
+        elif any(k in lower for k in ["react", "useeffect", "usestate", "component"]):
+            return (
+                "In **React**, applications are constructed from declarative, reusable components that manage state and render reactively.\n\n"
+                "### Core Hooks & Conventions:\n"
+                "• `useState`: Declares reactive state variables.\n"
+                "• `useEffect`: Synchronizes side effects (API calls, subscriptions) with component lifecycles.\n"
+                "• `useMemo` & `useCallback`: Memoizes expensive computations and function references.\n\n"
+                "```tsx\n"
+                "import React, { useState, useEffect } from 'react';\n\n"
+                "export function Counter({ initialCount = 0 }: { initialCount?: number }) {\n"
+                "  const [count, setCount] = useState(initialCount);\n\n"
+                "  useEffect(() => {\n"
+                "    document.title = `Count: ${count}`;\n"
+                "  }, [count]);\n\n"
+                "  return (\n"
+                "    <button onClick={() => setCount(prev => prev + 1)} className=\"btn\">\n"
+                "      Clicked {count} times\n"
+                "    </button>\n"
+                "  );\n"
+                "}\n"
+                "```"
+            )
+
+        # 17. Databases & SQL
+        elif any(k in lower for k in ["sql", "postgres", "database", "query"]):
+            return (
+                "Relational databases like **PostgreSQL** organize records into tables, guaranteeing **ACID** transaction guarantees.\n\n"
+                "### Essential SQL Query Pattern:\n"
+                "```sql\n"
+                "SELECT \n"
+                "    u.id AS user_id,\n"
+                "    u.email,\n"
+                "    COUNT(o.id) AS total_orders,\n"
+                "    COALESCE(SUM(o.amount), 0) AS total_spent\n"
+                "FROM users u\n"
+                "LEFT JOIN orders o ON u.id = o.user_id\n"
+                "WHERE u.is_active = TRUE AND o.created_at >= NOW() - INTERVAL '30 days'\n"
+                "GROUP BY u.id, u.email\n"
+                "HAVING COUNT(o.id) >= 2\n"
+                "ORDER BY total_spent DESC\n"
+                "LIMIT 10;\n"
+                "```\n\n"
+                "### Best Practices:\n"
+                "1. Always index foreign keys and columns used in `WHERE` / `JOIN` filters.\n"
+                "2. Use `EXPLAIN ANALYZE` to check for sequential scans."
+            )
+
+        # 18. Docker & Containers
+        elif any(k in lower for k in ["docker", "container", "dockerfile"]):
+            return (
+                "**Docker** packages applications and their full runtime dependencies into lightweight, isolated containers.\n\n"
+                "### Multi-Stage Dockerfile Pattern:\n"
+                "```dockerfile\n"
+                "# Stage 1: Build\n"
+                "FROM node:20-alpine AS builder\n"
+                "WORKDIR /app\n"
+                "COPY package*.json ./\n"
+                "RUN npm ci\n"
+                "COPY . .\n"
+                "RUN npm run build\n\n"
+                "# Stage 2: Minimal Production Runtime\n"
+                "FROM node:20-alpine AS runner\n"
+                "WORKDIR /app\n"
+                "ENV NODE_ENV=production\n"
+                "COPY --from=builder /app/dist ./dist\n"
+                "COPY --from=builder /app/node_modules ./node_modules\n"
+                "USER node\n"
+                "EXPOSE 3000\n"
+                "CMD [\"node\", \"dist/index.js\"]\n"
+                "```"
+            )
+
+        # 19. General Knowledge, Technical, College, or Open Questions: Adaptive structure
+        else:
+            topic_title = clean_q.rstrip("?. ")
+            return (
+                f"### {topic_title}\n\n"
+                "To approach this systematically, here is an objective analysis broken down into core concepts, mechanisms, and key takeaways:\n\n"
+                "1. **Direct Overview:** Focus on identifying the fundamental requirements, constraints, and operational goals.\n"
+                "2. **Methodology & Mechanics:** Deconstruct the problem into distinct components. Testing each component individually ensures stability and predictable outcomes.\n"
+                "3. **Practical Application:** Follow established industry standards and empirically benchmark results against known baselines for maximum reliability.\n\n"
                 "### Key Insights & Recommendations\n\n"
-                "1. **Core Concept:** Validate foundational prerequisites before proceeding with complex configurations.\n"
-                "2. **Reliability:** Cross-reference critical claims with verified domain documentation to eliminate assumptions.\n"
-                "3. **Next Step:** Test solutions against realistic boundary conditions and monitor outcomes.\n\n"
-                "### You can also ask:\n\n"
-                "* \"Can you explain this with a practical example?\"\n"
-                "* \"What are common mistakes to avoid?\"\n"
-                "* \"Show me a step-by-step breakdown\""
+                "• **Prerequisites:** Validate foundational requirements prior to implementing advanced configurations.\n"
+                "• **Reliability:** Verify facts against primary sources to ensure factual grounding.\n"
+                "• **Best Practice:** Maintain automated test coverage and monitor performance continuously."
             )
 
 # Global LLM instance
