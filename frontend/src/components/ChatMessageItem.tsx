@@ -25,6 +25,7 @@ import {
   Users
 } from 'lucide-react';
 import { ConsensusResultCard } from './ConsensusResultCard';
+import { AnswerCorrectnessCard } from './AnswerCorrectnessCard';
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -210,6 +211,17 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
             <span className="inline-block w-2 h-4 ml-1 bg-blue-400 animate-pulse align-middle" />
           )}
         </div>
+        
+        {/* Correctness Score (%) & "Why is this correct?" Verification Box */}
+        {!isUser && !message.isStreaming && (trace || message.consensus_result) && (
+          <AnswerCorrectnessCard
+            trace={trace}
+            consensusResult={message.consensus_result}
+            onOpenTrustReport={onOpenTrustReport}
+            onToggleHeatmap={() => setShowHeatmap(!showHeatmap)}
+            showHeatmap={showHeatmap}
+          />
+        )}
 
         {/* Multi-AI Consensus Card & Answer Occurrence Rate */}
         {!isUser && message.consensus_result && (
