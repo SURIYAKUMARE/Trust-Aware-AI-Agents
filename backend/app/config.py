@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "mock")  # "mock", "gemini", "anthropic"
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     MODEL_NAME: str = os.getenv("MODEL_NAME", "gemini-2.5-flash")
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./trustagent.db")
     KB_DIR: str = os.getenv("KB_DIR", "./backend/data/kb")

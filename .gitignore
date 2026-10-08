@@ -22,3 +22,6 @@ frontend/.tmp/
 .DS_Store
 *.log
 .env
+*.env
+*.env.*
+frontend/.env

@@ -16,7 +16,7 @@ import {
 import { 
   getStoredModelSettings, 
   saveModelSettings, 
-  ModelSettings 
+  ModelSettings
 } from '../services/clientAgent';
 
 interface ModelSettingsModalProps {
@@ -30,7 +30,7 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
   onClose,
   onSave,
 }) => {
-  const [provider, setProvider] = useState<'auto' | 'builtin' | 'groq' | 'gemini' | 'openai'>('builtin');
+  const [provider, setProvider] = useState<'auto' | 'builtin' | 'groq' | 'gemini' | 'openai'>('groq');
   const [groqKey, setGroqKey] = useState('');
   const [geminiKey, setGeminiKey] = useState('');
   const [openaiKey, setOpenaiKey] = useState('');
@@ -43,7 +43,7 @@ export const ModelSettingsModal: React.FC<ModelSettingsModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       const s = getStoredModelSettings();
-      setProvider((s.provider as any) || 'builtin');
+      setProvider((s.provider as any) || 'groq');
       setGroqKey(s.groqKey || '');
       setGeminiKey(s.geminiKey || '');
       setOpenaiKey(s.openaiKey || '');

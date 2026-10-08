@@ -105,7 +105,9 @@ export function App() {
 
   const refreshProviderLabel = () => {
     const s = getStoredModelSettings();
-    if (s.provider === 'gemini') {
+    if (s.provider === 'groq' || s.groqKey) {
+      setProviderLabel('⚡ Groq LPU (GPT-OSS 120B)');
+    } else if (s.provider === 'gemini') {
       setProviderLabel('⚡ Gemini 2.0');
     } else if (s.provider === 'openai') {
       setProviderLabel('✨ GPT-4o');

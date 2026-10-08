@@ -25,16 +25,26 @@ export interface ModelSettings {
   customBackendUrl?: string;
 }
 
+const ENV_GROQ_KEY = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GROQ_API_KEY) || '';
 const SETTINGS_STORAGE_KEY = 'trustagent_model_settings';
 
 export function getStoredModelSettings(): ModelSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (!parsed.groqKey && ENV_GROQ_KEY) {
+        parsed.groqKey = ENV_GROQ_KEY;
+      }
+      return parsed;
+    }
   } catch (e) {
     console.error('Error reading settings from localStorage:', e);
   }
-  return { provider: 'auto' };
+  return { 
+    provider: ENV_GROQ_KEY ? 'groq' : 'auto',
+    groqKey: ENV_GROQ_KEY || undefined 
+  };
 }
 
 export function saveModelSettings(settings: ModelSettings): void {
@@ -873,28 +883,50 @@ export class ClientTrustAgent {
 
     messages.push({ role: 'user', content: userText });
 
-    const payload = {
-      model: 'llama-3.3-70b-versatile',
-      messages,
-      temperature: 0.7,
-      max_tokens: 2048,
-    };
+    const candidateModels = [
+      'openai/gpt-oss-120b',
+      'llama-3.3-70b-versatile',
+      'qwen/qwen3.8-27b',
+      'openai/gpt-oss-20b'
+    ];
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(payload)
-    });
+    let lastError: Error | null = null;
+    for (const model of candidateModels) {
+      try {
+        const payload = {
+          model,
+          messages,
+          temperature: 0.7,
+          max_tokens: 2048,
+        };
 
-    if (!res.ok) {
-      throw new Error(`Groq API error ${res.status}: ${await res.text()}`);
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          if (res.status === 404 || res.status === 400 || res.status === 403) {
+            lastError = new Error(`Model ${model} unavailable: ${errText}`);
+            continue;
+          }
+          throw new Error(`Groq API error ${res.status}: ${errText}`);
+        }
+
+        const data = await res.json();
+        const content = data.choices?.[0]?.message?.content;
+        if (content) return content;
+      } catch (err: any) {
+        lastError = err;
+      }
     }
 
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content || 'No answer generated.';
+    throw lastError || new Error('All Groq candidate models failed.');
   }
 
   /**
