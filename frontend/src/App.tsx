@@ -10,6 +10,8 @@ import { EvaluationView } from './components/EvaluationView';
 import { ArchitectureView } from './components/ArchitectureView';
 import { DemoMode } from './components/DemoMode';
 import { AdversarialPlayground } from './components/AdversarialPlayground';
+import { TokenSaverView } from './components/TokenSaverView';
+import { ExtensionCompanionView } from './components/ExtensionCompanionView';
 import { ModelSettingsModal } from './components/ModelSettingsModal';
 import { SavedPromptsModal } from './components/SavedPromptsModal';
 import { ConversationMemoryModal } from './components/ConversationMemoryModal';
@@ -367,6 +369,23 @@ export function App() {
               isLoading={isLoading}
               modelProfile={modelProfile}
             />
+          )}
+
+          {activeTab === 'token_saver' && (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-7xl mx-auto w-full">
+              <TokenSaverView 
+                onUseInChat={(text) => {
+                  setActiveTab('console');
+                  handleSendMessage(text);
+                }}
+              />
+            </div>
+          )}
+
+          {activeTab === 'extension' && (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-7xl mx-auto w-full">
+              <ExtensionCompanionView />
+            </div>
           )}
 
           {activeTab === 'timeline' && (

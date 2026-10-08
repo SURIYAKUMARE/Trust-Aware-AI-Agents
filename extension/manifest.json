@@ -1,0 +1,62 @@
+{
+  "manifest_version": 3,
+  "name": "TrustGuard AI — Verification & Token Saver",
+  "version": "1.0.0",
+  "description": "Independent real-time verification layer for ChatGPT, Gemini, Claude, and Perplexity with Token Saver context compression.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icons/icon48.png",
+    "default_title": "TrustGuard AI"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "permissions": [
+    "activeTab",
+    "storage",
+    "contextMenus",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://gemini.google.com/*",
+    "https://claude.ai/*",
+    "https://www.perplexity.ai/*",
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://gemini.google.com/*",
+        "https://claude.ai/*",
+        "https://www.perplexity.ai/*",
+        "<all_urls>"
+      ],
+      "js": [
+        "adapters/chatgpt.js",
+        "adapters/gemini.js",
+        "adapters/claude.js",
+        "adapters/perplexity.js",
+        "adapters/generic.js",
+        "token_saver.js",
+        "content.js"
+      ],
+      "css": [
+        "styles.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

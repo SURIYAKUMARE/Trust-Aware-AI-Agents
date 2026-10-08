@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TrustGuard AI</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 360px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #090d16;
+      color: #f1f5f9;
+      padding: 16px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+    }
+    .title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid #10b981;
+    }
+    .card {
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #9ca3af;
+      margin-bottom: 8px;
+    }
+    select, input, textarea {
+      width: 100%;
+      background: #1f2937;
+      border: 1px solid #374151;
+      color: #f3f4f6;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+      outline: none;
+    }
+    .btn {
+      width: 100%;
+      background: #0284c7;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 8px;
+      transition: background 0.15s ease;
+    }
+    .btn:hover { background: #0369a1; }
+    .btn-secondary {
+      background: #374151;
+    }
+    .btn-secondary:hover { background: #4b5563; }
+    .privacy-notice {
+      font-size: 10px;
+      color: #6b7280;
+      margin-top: 6px;
+      line-height: 1.4;
+    }
+    .metrics-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      padding: 4px 0;
+    }
+    .metrics-val { font-weight: 700; color: #38bdf8; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">
+      <span>🛡️</span> TrustGuard AI
+    </div>
+    <div id="conn-status" class="status-badge">● Active</div>
+  </div>
+
+  <!-- Verification Mode Selector -->
+  <div class="card">
+    <div class="card-title">Verification Mode</div>
+    <select id="mode-select">
+      <option value="quick">Quick Check (Heuristic + Cache)</option>
+      <option value="deep">Deep Verify (Claims + Tools)</option>
+      <option value="fact">Fact Check (RAG + Factual)</option>
+      <option value="math">Math Verify (SymPy Calculator)</option>
+      <option value="code">Code Verify (Python Sandbox)</option>
+      <option value="high_risk">High-Risk Safety Check</option>
+    </select>
+  </div>
+
+  <!-- Screen Capture Verification -->
+  <div class="card">
+    <div class="card-title">📸 Screen Capture Verification</div>
+    <button id="capture-tab-btn" class="btn">Capture Visible Tab</button>
+    <div class="privacy-notice">
+      🔒 <strong>Privacy-First Guarantee:</strong> Requires manual trigger. Local credentials & secret keys are automatically redacted before evaluation.
+    </div>
+  </div>
+
+  <!-- Token Saver Quick Compression -->
+  <div class="card">
+    <div class="card-title">⚡ Token Saver Studio</div>
+    <textarea id="compress-input" rows="3" placeholder="Paste prompt or chat to compress..."></textarea>
+    <div style="display: flex; gap: 6px; margin-top: 6px;">
+      <select id="compress-mode" style="flex: 1;">
+        <option value="balanced">Balanced (~50% saved)</option>
+        <option value="aggressive">Aggressive (~70% saved)</option>
+        <option value="compact">Compact Caveman (~80% saved)</option>
+        <option value="lossless">Lossless (~20% saved)</option>
+      </select>
+      <button id="compress-btn" class="btn" style="width: auto; margin-top: 0; padding: 6px 14px;">Compress</button>
+    </div>
+    <div id="compress-results" style="margin-top: 8px; display: none;">
+      <div class="metrics-row">
+        <span>Original Tokens:</span>
+        <span id="res-orig" class="metrics-val">0</span>
+      </div>
+      <div class="metrics-row">
+        <span>Compressed Tokens:</span>
+        <span id="res-comp" class="metrics-val">0</span>
+      </div>
+      <div class="metrics-row">
+        <span>Tokens Saved:</span>
+        <span id="res-saved" class="metrics-val" style="color: #34d399;">0 (0%)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation / Links -->
+  <button id="open-studio-btn" class="btn btn-secondary">Open Full TrustGuard Studio ↗</button>
+
+  <script src="popup.js"></script>
+</body>
+</html>

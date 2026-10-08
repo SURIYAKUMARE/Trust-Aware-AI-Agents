@@ -218,3 +218,91 @@ export interface PromptTemplate {
   prompt: string;
   icon?: string;
 }
+
+// Token Saver & Compression Interfaces
+export type TokenSaverMode = 'balanced' | 'aggressive' | 'compact' | 'lossless';
+
+export interface CompressRequest {
+  text: string;
+  mode?: TokenSaverMode;
+  preserve_code?: boolean;
+  redact_sensitive?: boolean;
+  target_token_budget?: number;
+}
+
+export interface CompressResponse {
+  original_text: string;
+  compressed_text: string;
+  original_tokens: number;
+  compressed_tokens: number;
+  saved_tokens: number;
+  compression_ratio: number;
+  estimated_cost_saved_usd: number;
+  mode: string;
+  critical_facts_retained: string[];
+  redacted_items_count: number;
+  processing_time_ms: number;
+}
+
+export interface TokenAnalyticsResponse {
+  total_compressions: number;
+  total_original_tokens: number;
+  total_compressed_tokens: number;
+  total_saved_tokens: number;
+  avg_compression_ratio: number;
+  total_cost_saved_usd: number;
+  cache_hits: number;
+  cache_misses: number;
+  cache_hit_rate: number;
+}
+
+// Browser Extension & Independent Verification Interfaces
+export type AnalyzeMode = 'quick' | 'deep' | 'fact' | 'code' | 'math' | 'research' | 'high_risk';
+
+export interface ClaimAnalysisItem {
+  claim: string;
+  status: 'SUPPORTED' | 'CONTRADICTED' | 'NO_EVIDENCE';
+  confidence: number;
+  source?: string;
+  snippet?: string;
+  category?: string;
+  is_cached?: boolean;
+}
+
+export interface AnalyzeRequest {
+  prompt: string;
+  response: string;
+  provider?: string;
+  mode?: AnalyzeMode;
+  url?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface AnalyzeScreenRequest {
+  extracted_text: string;
+  source_app?: string;
+  mode?: AnalyzeMode;
+  image_base64?: string;
+}
+
+export interface AnalyzeResponse {
+  analysis_id: string;
+  query: string;
+  response_text: string;
+  trust_score: number;
+  trust_label: string;
+  mode: string;
+  provider: string;
+  claims: ClaimAnalysisItem[];
+  summary: string;
+  factual_consistency: number;
+  evidence_consistency: number;
+  contradiction_count: number;
+  uncertainty_score: number;
+  suggested_correction?: string;
+  verified_answer?: string;
+  tokens_saved: number;
+  cached: boolean;
+  latency_ms: number;
+}
+

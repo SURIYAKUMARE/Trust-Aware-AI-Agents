@@ -175,3 +175,97 @@ class SimulationResponse(BaseModel):
     escalation_rate: float
     abstain_rate: float
     selective_accuracy: float
+
+
+# Token Saver & Context Compression Schemas
+class TokenSaverMode(str, Enum):
+    BALANCED = "balanced"
+    AGGRESSIVE = "aggressive"
+    COMPACT = "compact"  # Key-Value / Caveman mode
+    LOSSLESS = "lossless"
+
+class CompressRequest(BaseModel):
+    text: str
+    mode: TokenSaverMode = TokenSaverMode.BALANCED
+    preserve_code: bool = True
+    redact_sensitive: bool = True
+    target_token_budget: Optional[int] = None
+
+class CompressResponse(BaseModel):
+    original_text: str
+    compressed_text: str
+    original_tokens: int
+    compressed_tokens: int
+    saved_tokens: int
+    compression_ratio: float  # e.g., 0.62 means 62% tokens saved
+    estimated_cost_saved_usd: float
+    mode: str
+    critical_facts_retained: List[str] = Field(default_factory=list)
+    redacted_items_count: int = 0
+    processing_time_ms: float = 0.0
+
+class TokenAnalyticsResponse(BaseModel):
+    total_compressions: int
+    total_original_tokens: int
+    total_compressed_tokens: int
+    total_saved_tokens: int
+    avg_compression_ratio: float
+    total_cost_saved_usd: float
+    cache_hits: int
+    cache_misses: int
+    cache_hit_rate: float
+
+
+# Extension & Independent Verification Schemas
+class AnalyzeMode(str, Enum):
+    QUICK = "quick"
+    DEEP = "deep"
+    FACT = "fact"
+    CODE = "code"
+    MATH = "math"
+    RESEARCH = "research"
+    HIGH_RISK = "high_risk"
+
+class ClaimAnalysisItem(BaseModel):
+    claim: str
+    status: ClaimStatus
+    confidence: float
+    source: Optional[str] = None
+    snippet: Optional[str] = None
+    category: Optional[str] = "fact"  # fact, logic, math, code, safety
+    is_cached: bool = False
+
+class AnalyzeRequest(BaseModel):
+    prompt: str
+    response: str
+    provider: Optional[str] = "generic"  # chatgpt, gemini, claude, perplexity, generic
+    mode: AnalyzeMode = AnalyzeMode.QUICK
+    url: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+class AnalyzeScreenRequest(BaseModel):
+    extracted_text: str
+    source_app: Optional[str] = "tab"  # tab, window, screen
+    mode: AnalyzeMode = AnalyzeMode.QUICK
+    image_base64: Optional[str] = None
+
+class AnalyzeResponse(BaseModel):
+    analysis_id: str
+    query: str
+    response_text: str
+    trust_score: float  # 0.0 to 100.0
+    trust_label: str  # HIGH TRUST, MEDIUM TRUST, LOW TRUST, UNVERIFIED, CRITICAL RISK
+    mode: str
+    provider: str
+    claims: List[ClaimAnalysisItem] = Field(default_factory=list)
+    summary: str
+    factual_consistency: float = 1.0
+    evidence_consistency: float = 1.0
+    contradiction_count: int = 0
+    uncertainty_score: float = 0.0
+    suggested_correction: Optional[str] = None
+    verified_answer: Optional[str] = None
+    tokens_saved: int = 0
+    cached: bool = False
+    latency_ms: float = 0.0
+

@@ -16,9 +16,17 @@ from app.schemas import (
     EscalationItem,
     EscalationResolveRequest,
     MetricsResponse,
+    CompressRequest,
+    CompressResponse,
+    TokenAnalyticsResponse,
+    AnalyzeRequest,
+    AnalyzeScreenRequest,
+    AnalyzeResponse,
 )
 from app.agent.trust_agent import trust_agent
 from app.agent.baseline_agent import baseline_agent
+from app.agent.external_verifier import external_verifier
+from app.token_saver.engine import token_saver_engine
 from app.monitor.logger import monitor_logger
 from app.monitor.metrics import metrics_aggregator
 from app.db import SessionLocal, RequestLog, EscalationQueue
@@ -464,3 +472,69 @@ async def run_demo_scenario(scenario_id: int):
 def list_demo_scenarios():
     """List the 6 scripted demo scenarios with details."""
     return list(DEMO_SCENARIOS.values())
+
+
+# ==========================================
+# Token Saver & Context Compression APIs
+# ==========================================
+
+@app.post("/api/compress", response_model=CompressResponse)
+def compress_context(req: CompressRequest):
+    """
+    Compress prompt or context using intelligent information classification:
+    Preserves critical code/constraints, condenses explanations, and eliminates filler.
+    """
+    return token_saver_engine.compress(
+        text=req.text,
+        mode=req.mode,
+        preserve_code=req.preserve_code,
+        redact_sensitive=req.redact_sensitive,
+        target_token_budget=req.target_token_budget,
+    )
+
+@app.get("/api/tokens/analytics", response_model=TokenAnalyticsResponse)
+def get_token_analytics():
+    """Retrieve cumulative token compression metrics, savings %, and verification cache hit rates."""
+    return token_saver_engine.get_analytics()
+
+
+# ==========================================
+# Browser Extension & Independent Verification APIs
+# ==========================================
+
+@app.post("/api/analyze", response_model=AnalyzeResponse)
+async def analyze_external_response(req: AnalyzeRequest):
+    """
+    Independently evaluate an external AI response (from ChatGPT, Gemini, Claude, etc.)
+    with atomic claim decomposition, tool execution, and calibrated trust scoring.
+    """
+    try:
+        return await external_verifier.analyze(req)
+    except Exception as e:
+        logger.error(f"Error during independent analysis: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/verify", response_model=AnalyzeResponse)
+async def verify_external_response(req: AnalyzeRequest):
+    """Alias for /api/analyze."""
+    return await external_verifier.analyze(req)
+
+@app.post("/api/analyze/screen", response_model=AnalyzeResponse)
+async def analyze_screen_capture(req: AnalyzeScreenRequest):
+    """
+    Analyze text extracted from an authorized user screen or tab capture.
+    Redacts sensitive keys/PII prior to evaluation.
+    """
+    try:
+        return await external_verifier.analyze_screen(req)
+    except Exception as e:
+        logger.error(f"Error during screen analysis: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/verification/{analysis_id}", response_model=AnalyzeResponse)
+def get_verification_by_id(analysis_id: str):
+    """Fetch stored verification analysis trace by ID."""
+    if analysis_id in external_verifier.analyses_history:
+        return external_verifier.analyses_history[analysis_id]
+    raise HTTPException(status_code=404, detail="Analysis trace not found.")
+

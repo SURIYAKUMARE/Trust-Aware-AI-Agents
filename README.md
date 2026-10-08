@@ -4,7 +4,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%20%7C%203.13-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![React 19](https://img.shields.io/badge/React-19.2+-61DAFB.svg)](https://react.dev/)
-[![Tests](https://img.shields.io/badge/tests-38%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-61%20passed-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
@@ -208,9 +208,44 @@ Honest reporting of system trade-offs:
 ---
 
 ## 🧪 Test Suite Status
-All **38 unit and integration tests** pass with 100% success rate:
+All **61 unit and integration tests** pass with 100% success rate:
 ```bash
-python -m pytest backend/tests/test_trustagent.py -v
-# ======================== 38 passed, 1 warning in 14.87s ========================
+python -m pytest backend/tests/ -v
+# ======================== 61 passed, 1 warning in 13.08s ========================
 ```
-Covers: JSON repair, Isotonic calibration monotonicity, ECE/Brier calculation, Multi-scorer aggregation, Uncertainty diagnosis, Router threshold transitions, High-stakes risk classification, SymPy/sandbox tool execution, End-to-end agent decision loops, Sentence-level verification segmentation, Human feedback knowledge base persistence, Threshold simulation API, and Adversarial preset endpoints.
+Covers:
+- **Token Saver & Context Compression**: Balanced, Aggressive, Compact Caveman, and Lossless modes, target token budget enforcement, code block preservation, sensitive credential redaction (OpenAI, Anthropic, Gemini, GitHub tokens, cards, passwords).
+- **Verification Cache & Deduping**: Cryptographic SHA-256 hash digests, TTL expiration, hit/miss telemetry tracking.
+- **Independent External Verifier**: Multi-mode analysis across ChatGPT, Gemini, Claude, and Perplexity responses, SymPy carry arithmetic verification, sandbox execution, adversarial trap refutation, and high-risk financial blocks.
+- **Core TrustAgent Engine**: JSON repair, Isotonic calibration monotonicity, ECE/Brier calculation, Multi-scorer aggregation, Uncertainty diagnosis, Router threshold transitions, High-stakes risk classification, SymPy/sandbox tool execution, End-to-end agent decision loops, Sentence-level verification segmentation, Human feedback knowledge base persistence, Threshold simulation API, and Adversarial preset endpoints.
+
+---
+
+## 🛡️ TrustGuard Browser Extension (Manifest V3)
+> **Independent Real-Time Verification Layer for External Frontier Models**
+> Compatible with Chrome, Edge, Brave, and Chromium browsers.
+
+### Key Capabilities
+- **Non-Invasive Verification**: Operates independently alongside ChatGPT (`chatgpt.com`), Claude (`claude.ai`), Gemini (`gemini.google.com`), and Perplexity (`perplexity.ai`).
+- **Floating Trust Badges**: Automatically attaches dynamic verification pills (`🛡️ TrustGuard 94% Trusted`, `⚠️ Medium Trust`, or `🚨 Risk Alert`).
+- **Executive Side Panel**: Displays calibrated trust score (0–100%), evidence consistency metrics, claim-by-claim breakdown, and verified answer corrections.
+- **Privacy-First Screen Capture**: Explicit user-triggered tab/window capture with **zero continuous background recording** and automatic local secret redaction.
+
+### Installation
+1. Open `chrome://extensions/` (or `edge://extensions/`).
+2. Enable **Developer mode** in the top-right corner.
+3. Click **Load unpacked** and select the `extension/` folder in this repository.
+
+---
+
+## ⚡ Token Saver & Context Compression Engine
+> **Intelligent Context Compression Saving 40% to 85% of LLM Token Costs**
+
+### Features & Compression Modes
+1. **⚖️ Balanced Mode (~40–60% saved)**: Prunes conversational filler, pleasantries, and redundant connectors while keeping full prose and critical code blocks intact.
+2. **🔥 Aggressive Mode (~60–75% saved)**: Extracts core imperative clauses and declarative facts, eliminating transition padding.
+3. **⚡ Compact Caveman Mode (~70–85% saved)**: Transforms verbose prompts into hyper-dense key:value or imperative bullet format (e.g., `task: fix PostgreSQL 5432 | req: keep port open`).
+4. **🛡️ Lossless Mode (~15–30% saved)**: Strips pure conversational greetings and trailing boilerplate without modifying technical statements.
+5. **🔒 Built-In Credential Redaction**: Automatically scans and masks sensitive API keys (`sk-...`, `ghp_...`, `AIza...`), bearer tokens, passwords, and credit card numbers prior to transmission.
+6. **⚡ Verification Cache Layer**: Deduplicates recurring checks with SHA-256 hashing and TTL caching, minimizing duplicate LLM/tool costs.
+

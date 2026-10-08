@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TrustGuard Side Panel</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #090d16;
+      color: #f1f5f9;
+      padding: 16px;
+      font-size: 13px;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+    }
+    .score-banner {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .score-circle {
+      width: 76px;
+      height: 76px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 800;
+      border: 3px solid #10b981;
+      color: #10b981;
+      margin-bottom: 8px;
+    }
+    .label {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .metric-card {
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .metric-title {
+      font-size: 10px;
+      color: #9ca3af;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .metric-num {
+      font-size: 16px;
+      font-weight: 700;
+      color: #38bdf8;
+      margin-top: 2px;
+    }
+    .claim-item {
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+    .claim-supported { border-left: 3px solid #10b981; }
+    .claim-contradicted { border-left: 3px solid #ef4444; }
+    .claim-noevidence { border-left: 3px solid #64748b; }
+    .btn {
+      width: 100%;
+      background: #0284c7;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn:hover { background: #0369a1; }
+  </style>
+</head>
+<body>
+  <div class="panel-header">
+    <div style="font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
+      <span>🛡️</span> TrustGuard Executive Panel
+    </div>
+    <div id="live-indicator" style="font-size: 11px; color: #34d399;">● Live Watch</div>
+  </div>
+
+  <div class="score-banner">
+    <div id="gauge-circle" class="score-circle">--%</div>
+    <div id="gauge-label" class="label" style="color: #94a3b8;">WAITING FOR ANALYSIS</div>
+    <div id="gauge-summary" style="font-size: 12px; color: #cbd5e1; margin-top: 6px;">
+      Interact with external AI on ChatGPT, Claude, or Gemini to see live independent trust verification.
+    </div>
+  </div>
+
+  <div class="metric-grid">
+    <div class="metric-card">
+      <div class="metric-title">Factual Grounding</div>
+      <div id="met-factual" class="metric-num">--</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-title">Evidence Match</div>
+      <div id="met-evidence" class="metric-num">--</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-title">Contradictions</div>
+      <div id="met-contra" class="metric-num">--</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-title">Tokens Compressed</div>
+      <div id="met-tokens" class="metric-num">--</div>
+    </div>
+  </div>
+
+  <div style="margin-bottom: 16px;">
+    <div style="font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; margin-bottom: 8px;">
+      Claim-Level Verification
+    </div>
+    <div id="claims-container">
+      <div style="color: #64748b; font-size: 12px; text-align: center; padding: 20px 0;">
+        No active claims to display.
+      </div>
+    </div>
+  </div>
+
+  <div id="correction-box" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: 8px; padding: 10px; margin-bottom: 16px;">
+    <div style="font-weight: 700; color: #f87171; font-size: 11px; margin-bottom: 4px;">⚠️ SUGGESTED CORRECTION</div>
+    <div id="correction-text" style="font-size: 12px; color: #fca5a5;"></div>
+  </div>
+
+  <button id="copy-btn" class="btn" style="display: none;">Copy Verified Answer</button>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

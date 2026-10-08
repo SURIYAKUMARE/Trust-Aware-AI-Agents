@@ -15,11 +15,15 @@ import {
   Settings,
   Menu,
   Sun,
-  Moon
+  Moon,
+  Zap,
+  Shield
 } from 'lucide-react';
 
 export type TabType = 
   | 'console' 
+  | 'token_saver'
+  | 'extension'
   | 'timeline' 
   | 'compare' 
   | 'playground' 
@@ -56,6 +60,8 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const tabs: Array<{ id: TabType; label: string; icon: React.ReactNode; badge?: number }> = [
     { id: 'console', label: 'Chat Assistant', icon: <Bot className="w-4 h-4" /> },
+    { id: 'token_saver', label: 'Token Saver', icon: <Zap className="w-4 h-4 text-sky-400" /> },
+    { id: 'extension', label: 'Extension', icon: <Shield className="w-4 h-4 text-emerald-400" /> },
     { id: 'monitoring', label: 'Monitoring', icon: <BarChart3 className="w-4 h-4" /> },
     { id: 'evaluation', label: 'Evaluation', icon: <Award className="w-4 h-4" /> },
     { id: 'playground', label: 'Playground', icon: <Flame className="w-4 h-4 text-rose-400" /> },
