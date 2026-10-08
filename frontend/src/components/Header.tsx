@@ -8,13 +8,15 @@ import {
   Award, 
   Network, 
   Sparkles,
-  ShieldCheck 
+  ShieldCheck,
+  Flame
 } from 'lucide-react';
 
 export type TabType = 
   | 'console' 
   | 'timeline' 
   | 'compare' 
+  | 'playground'
   | 'escalations' 
   | 'monitoring' 
   | 'evaluation' 
@@ -36,6 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'console', label: 'Agent Console', icon: <Bot className="w-4 h-4" /> },
     { id: 'timeline', label: 'Decision Timeline', icon: <Activity className="w-4 h-4" /> },
     { id: 'compare', label: 'Compare Mode', icon: <GitCompare className="w-4 h-4" /> },
+    { id: 'playground', label: 'Playground', icon: <Flame className="w-4 h-4 text-rose-400" /> },
     { 
       id: 'escalations', 
       label: 'Escalations', 

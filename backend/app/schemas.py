@@ -36,6 +36,15 @@ class ClaimVerification(BaseModel):
     snippet: Optional[str] = None
     source: Optional[str] = None
     confidence: float = 1.0
+    is_human_verified: bool = False
+
+class SentenceVerification(BaseModel):
+    sentence: str
+    status: ClaimStatus
+    score: float = 1.0  # 1.0 for SUPPORTED, 0.4 for NO_EVIDENCE, 0.05 for CONTRADICTED
+    snippet: Optional[str] = None
+    source: Optional[str] = None
+    is_human_verified: bool = False
 
 class ScorerSignal(BaseModel):
     scorer: str  # "self_consistency", "verbalized", "evidence", "reasoning_check"
@@ -52,7 +61,9 @@ class ConfidenceReport(BaseModel):
     signals: List[ScorerSignal] = Field(default_factory=list)
     reasons: List[str] = Field(default_factory=list)
     claims: List[ClaimVerification] = Field(default_factory=list)
+    sentences: List[SentenceVerification] = Field(default_factory=list)
     plain_explanation: str = ""
+    has_human_verified_evidence: bool = False
 
 class TraceStep(BaseModel):
     step_index: int
@@ -139,3 +150,16 @@ class MetricsResponse(BaseModel):
     avg_cost_usd: float
     drift_alert: bool
     drift_details: Optional[Dict[str, Any]] = None
+
+class SimulationRequest(BaseModel):
+    high_threshold: float = 0.85
+    low_threshold: float = 0.45
+
+class SimulationResponse(BaseModel):
+    high_threshold: float
+    low_threshold: float
+    hallucination_rate: float
+    failed_decision_rate: float
+    escalation_rate: float
+    abstain_rate: float
+    selective_accuracy: float

@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { DecisionTrace, TraceStep } from '../types';
+import { api } from '../api';
+import { exportTracePdf } from '../utils/exportPdf';
 import { 
   ResponsiveContainer, 
   LineChart, 
@@ -20,14 +22,42 @@ import {
   Activity, 
   Clock, 
   Sparkles,
-  Bot
+  Bot,
+  FileDown,
+  History
 } from 'lucide-react';
 
 interface DecisionTimelineProps {
   trace: DecisionTrace | null;
 }
 
-export const DecisionTimeline: React.FC<DecisionTimelineProps> = ({ trace }) => {
+export const DecisionTimeline: React.FC<DecisionTimelineProps> = ({ trace: propTrace }) => {
+  const [tracesList, setTracesList] = useState<DecisionTrace[]>([]);
+  const [selectedTrace, setSelectedTrace] = useState<DecisionTrace | null>(propTrace);
+
+  useEffect(() => {
+    if (propTrace) {
+      setSelectedTrace(propTrace);
+    }
+  }, [propTrace]);
+
+  useEffect(() => {
+    const loadTraces = async () => {
+      try {
+        const list = await api.listTraces();
+        setTracesList(list);
+        if (!selectedTrace && list.length > 0) {
+          setSelectedTrace(list[0]);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    loadTraces();
+  }, []);
+
+  const trace = selectedTrace;
+
   if (!trace) {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-center border border-dashed border-slate-800 rounded-2xl bg-slate-950/40">
@@ -70,7 +100,41 @@ export const DecisionTimeline: React.FC<DecisionTimelineProps> = ({ trace }) => 
   return (
     <div className="space-y-6 max-w-5xl mx-auto w-full">
       {/* Overview Header Banner */}
-      <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-xl backdrop-blur-sm">
+      <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-xl backdrop-blur-sm space-y-4">
+        {/* Selector and PDF Row */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <History className="w-4 h-4 text-slate-400" />
+            <span className="text-xs font-mono text-slate-400">Request History:</span>
+            {tracesList.length > 0 ? (
+              <select
+                value={trace.trace_id}
+                onChange={(e) => {
+                  const found = tracesList.find((t) => t.trace_id === e.target.value);
+                  if (found) setSelectedTrace(found);
+                }}
+                className="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500 font-mono max-w-md truncate"
+              >
+                {tracesList.map((t) => (
+                  <option key={t.trace_id} value={t.trace_id}>
+                    [{t.final_route}] {t.query.slice(0, 50)}... ({Math.round(t.final_confidence * 100)}%)
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="text-xs text-slate-500 font-mono">Current session trace</span>
+            )}
+          </div>
+
+          <button
+            onClick={() => exportTracePdf(trace)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-600/30 border border-indigo-500/50 hover:bg-indigo-600/50 text-indigo-200 text-xs font-mono transition-colors cursor-pointer"
+          >
+            <FileDown className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Download A4 PDF</span>
+          </button>
+        </div>
+
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">

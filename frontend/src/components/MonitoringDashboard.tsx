@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MetricsResponse } from '../types';
+import { MetricsResponse, SimulationResponse } from '../types';
 import { api } from '../api';
 import { 
   ResponsiveContainer, 
@@ -24,12 +24,17 @@ import {
   TrendingUp,
   RefreshCw,
   Sliders,
-  CheckCircle2
+  CheckCircle2,
+  Gauge
 } from 'lucide-react';
 
 export const MonitoringDashboard: React.FC = () => {
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [highThreshold, setHighThreshold] = useState(0.85);
+  const [lowThreshold, setLowThreshold] = useState(0.45);
+  const [simResult, setSimResult] = useState<SimulationResponse | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
 
   const fetchMetrics = async () => {
     setIsLoading(true);
@@ -46,6 +51,21 @@ export const MonitoringDashboard: React.FC = () => {
   useEffect(() => {
     fetchMetrics();
   }, []);
+
+  useEffect(() => {
+    const runSim = async () => {
+      setIsSimulating(true);
+      try {
+        const res = await api.simulateThresholds(highThreshold, lowThreshold);
+        setSimResult(res);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsSimulating(false);
+      }
+    };
+    runSim();
+  }, [highThreshold, lowThreshold]);
 
   if (!metrics) {
     return (
@@ -172,6 +192,133 @@ export const MonitoringDashboard: React.FC = () => {
           <p className="text-2xl font-black text-amber-400 mt-1">{(metrics.abstain_rate * 100).toFixed(1)}%</p>
           <span className="text-[11px] text-slate-500">Traps safely halted</span>
         </div>
+      </div>
+
+      {/* Live Threshold Simulator Card */}
+      <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sliders className="w-5 h-5 text-indigo-400" />
+              <h3 className="text-sm font-bold text-white">Live Decision Routing Threshold Simulation</h3>
+              {isSimulating && <RefreshCw className="w-3.5 h-3.5 text-indigo-400 animate-spin" />}
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Dynamically recomputes hallucination rate, escalation volume, and selective accuracy from evaluation test benchmarks in real time.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setHighThreshold(0.85);
+              setLowThreshold(0.45);
+            }}
+            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-mono transition-colors cursor-pointer"
+          >
+            Reset Defaults (0.85 / 0.45)
+          </button>
+        </div>
+
+        {/* Sliders Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* HIGH Threshold Slider */}
+          <div className="space-y-2 bg-slate-950/60 p-4 rounded-xl border border-slate-800/80">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-semibold text-emerald-300 flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                HIGH Threshold (Direct Answer)
+              </span>
+              <span className="font-mono text-sm font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                {(highThreshold * 100).toFixed(0)}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min="0.60"
+              max="0.98"
+              step="0.01"
+              value={highThreshold}
+              onChange={(e) => setHighThreshold(parseFloat(e.target.value))}
+              className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+            />
+            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+              <span>0.60 (Permissive)</span>
+              <span>Default: 0.85</span>
+              <span>0.98 (Conservative)</span>
+            </div>
+          </div>
+
+          {/* LOW Threshold Slider */}
+          <div className="space-y-2 bg-slate-950/60 p-4 rounded-xl border border-slate-800/80">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-semibold text-amber-300 flex items-center gap-1.5">
+                <Gauge className="w-4 h-4 text-amber-400" />
+                LOW Threshold (Clarify / Tool Search vs Abstain)
+              </span>
+              <span className="font-mono text-sm font-bold text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-500/30">
+                {(lowThreshold * 100).toFixed(0)}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min="0.20"
+              max="0.65"
+              step="0.01"
+              value={lowThreshold}
+              onChange={(e) => setLowThreshold(parseFloat(e.target.value))}
+              className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+            />
+            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+              <span>0.20 (Few Escalations)</span>
+              <span>Default: 0.45</span>
+              <span>0.65 (High Escalation)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Real-time Computed Simulation Metrics */}
+        {simResult && (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 pt-1">
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+              <span className="text-[10px] uppercase font-mono text-slate-400 block">Hallucination Rate</span>
+              <span className="text-xl font-black text-rose-400">
+                {(simResult.hallucination_rate * 100).toFixed(1)}%
+              </span>
+              <span className="text-[10px] text-slate-500 block">Baseline: 28.9%</span>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+              <span className="text-[10px] uppercase font-mono text-slate-400 block">Escalation Rate</span>
+              <span className="text-xl font-black text-blue-400">
+                {(simResult.escalation_rate * 100).toFixed(1)}%
+              </span>
+              <span className="text-[10px] text-slate-500 block">Supervised items</span>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+              <span className="text-[10px] uppercase font-mono text-slate-400 block">Abstention Rate</span>
+              <span className="text-xl font-black text-amber-400">
+                {(simResult.abstain_rate * 100).toFixed(1)}%
+              </span>
+              <span className="text-[10px] text-slate-500 block">Honest traps</span>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center">
+              <span className="text-[10px] uppercase font-mono text-slate-400 block">Selective Accuracy</span>
+              <span className="text-xl font-black text-emerald-400">
+                {(simResult.selective_accuracy * 100).toFixed(1)}%
+              </span>
+              <span className="text-[10px] text-slate-500 block">When answering</span>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-center col-span-2 md:col-span-1">
+              <span className="text-[10px] uppercase font-mono text-slate-400 block">Failed Decisions</span>
+              <span className="text-xl font-black text-purple-400">
+                {(simResult.failed_decision_rate * 100).toFixed(1)}%
+              </span>
+              <span className="text-[10px] text-slate-500 block">Baseline: 34.4%</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Charts Grid */}

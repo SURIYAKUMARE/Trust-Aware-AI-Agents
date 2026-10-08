@@ -8,6 +8,7 @@ import { MonitoringDashboard } from './components/MonitoringDashboard';
 import { EvaluationView } from './components/EvaluationView';
 import { ArchitectureView } from './components/ArchitectureView';
 import { DemoMode } from './components/DemoMode';
+import { AdversarialPlayground } from './components/AdversarialPlayground';
 import { DecisionTrace, CompareResult } from './types';
 import { api } from './api';
 
@@ -116,6 +117,10 @@ export function App() {
             lastResult={compareResult}
             isLoading={isLoading}
           />
+        )}
+
+        {activeTab === 'playground' && (
+          <AdversarialPlayground />
         )}
 
         {activeTab === 'escalations' && (

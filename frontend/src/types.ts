@@ -25,6 +25,16 @@ export interface ClaimVerification {
   snippet?: string;
   source?: string;
   confidence: number;
+  is_human_verified?: boolean;
+}
+
+export interface SentenceVerification {
+  sentence: string;
+  status: ClaimStatus;
+  score: number;
+  snippet?: string;
+  source?: string;
+  is_human_verified?: boolean;
 }
 
 export interface ScorerSignal {
@@ -43,7 +53,9 @@ export interface ConfidenceReport {
   signals: ScorerSignal[];
   reasons: string[];
   claims: ClaimVerification[];
+  sentences?: SentenceVerification[];
   plain_explanation: string;
+  has_human_verified_evidence?: boolean;
 }
 
 export interface TraceStep {
@@ -128,3 +140,29 @@ export interface DemoScenario {
   description: string;
   query: string;
 }
+
+export interface SimulationRequest {
+  high_threshold: number;
+  low_threshold: number;
+}
+
+export interface SimulationResponse {
+  high_threshold: number;
+  low_threshold: number;
+  hallucination_rate: number;
+  failed_decision_rate: number;
+  escalation_rate: number;
+  abstain_rate: number;
+  selective_accuracy: number;
+}
+
+export interface AdversarialPreset {
+  id: number;
+  category: string;
+  title: string;
+  prompt: string;
+  trap_type: string;
+  baseline_behavior: string;
+  trust_behavior: string;
+}
+

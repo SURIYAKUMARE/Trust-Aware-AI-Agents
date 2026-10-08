@@ -4,7 +4,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%20%7C%203.13-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![React 19](https://img.shields.io/badge/React-19.2+-61DAFB.svg)](https://react.dev/)
-[![Tests](https://img.shields.io/badge/tests-34%20passed-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-38%20passed-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
@@ -19,6 +19,7 @@ When queried on unrecorded events, fabricated entities, or subtle arithmetic tra
 2. **Calibrates Scores** using non-parametric Isotonic Regression fitted on empirical data.
 3. **Explains Uncertainty** in plain English, citing per-claim evidence and ranked doubt factors.
 4. **Routes Actions Autonomously**: Answers directly when confidence is high; verifies with precision tools, asks clarifying questions, hands off to specialist agents, or halts for human authorization when confidence is low or risk is critical.
+5. **Advanced Governance Suite**: Includes interactive sentence-level evidence heatmaps, dynamic threshold sliders, enterprise risk-cost calculators, human feedback loops with knowledge-base persistence, an adversarial trick arena, and A4 PDF audit reports.
 
 ---
 
@@ -176,15 +177,16 @@ Evaluated on a 150-item benchmark dataset across 7 distinct categories (Factual,
 ---
 
 ## 🖥️ Frontend Architecture & Screens
-The React 19 + TypeScript + Tailwind CSS UI includes 8 comprehensive views:
-1. **Agent Console**: Interactive chat with animated circular SVG confidence gauge, color-coded level badges, and collapsible "Why I'm unsure" panel.
-2. **Decision Timeline**: Live trace sequence showing tools used and an interactive Recharts confidence trajectory line.
+The React 19 + TypeScript + Tailwind CSS UI includes 9 comprehensive views and enterprise extensions:
+1. **Agent Console**: Interactive chat with animated circular SVG confidence gauge, color-coded level badges, collapsible "Why I'm unsure" diagnostics, **Sentence-Level Confidence Heatmap** (green/yellow/red with interactive claim evidence citations and human supervisor badge), and **A4 PDF Export Button**.
+2. **Decision Timeline**: Live trace sequence showing tools used, an interactive Recharts confidence trajectory line, a **Request History Picker** to inspect any previous decision trace, and A4 PDF audit export.
 3. **Compare Mode**: Side-by-side execution of Baseline vs TrustAgent with instant visual hallucination-prevention banner.
-4. **Escalation Inbox**: Interactive queue for supervisors to Approve, Reject, or Edit high-stakes actions with audit notes.
-5. **Monitoring Dashboard**: Live reliability diagram, route distribution bar chart, confidence histogram, and drift alert banner.
-6. **Evaluation Results**: Hero numbers, before/after comparative charts, ablation matrix, and bootstrap confidence intervals.
-7. **Architecture Page**: System flowchart detailing pipeline stages and component interactions.
-8. **Demo Mode**: One-click scripted execution of the 6 canonical scenarios with autoplay timer and keyboard shortcuts (`1`-`6`, `Space`).
+4. **Adversarial Playground**: Dedicated testing arena with free-text input and **8 canonical preset trick prompts** (Fabricated Entity, False Premise, Prompt Injection, Leading Question, Medical Hazard, Mythological Trap, Carry Arithmetic, Unauthorized Financial Wire) with side-by-side agent comparison.
+5. **Escalation Inbox & Human Feedback Loop**: Interactive queue for supervisors to Approve, Reject, or Edit high-stakes actions with audit notes. Approved and edited resolutions **automatically persist to the knowledge base**, increasing future evidence support and displaying the "Learned from Human Feedback" badge.
+6. **Monitoring Dashboard**: Live reliability diagram, route distribution bar chart, confidence histogram, drift alert banner, and **Live Routing Threshold Sliders** that dynamically re-simulate hallucination and escalation rates in real time.
+7. **Evaluation Results & Risk-Cost Calculator**: Hero numbers, before/after comparative charts, ablation matrix, bootstrap confidence intervals, and an **Interactive Enterprise Risk-Cost Calculator** modeling operational fallout savings and net ROI.
+8. **Architecture Page**: System flowchart detailing pipeline stages and component interactions.
+9. **Demo Mode**: One-click scripted execution of the 6 canonical scenarios with autoplay timer and keyboard shortcuts (`1`-`6`, `Space`).
 
 ---
 
@@ -197,9 +199,9 @@ Honest reporting of system trade-offs:
 ---
 
 ## 🧪 Test Suite Status
-All **34 unit and integration tests** pass with 100% success rate:
+All **38 unit and integration tests** pass with 100% success rate:
 ```bash
 python -m pytest backend/tests/test_trustagent.py -v
-# ======================== 34 passed, 1 warning in 8.96s ========================
+# ======================== 38 passed, 1 warning in 14.87s ========================
 ```
-Covers: JSON repair, Isotonic calibration monotonicity, ECE/Brier calculation, Multi-scorer aggregation, Uncertainty diagnosis, Router threshold transitions, High-stakes risk classification, SymPy/sandbox tool execution, and End-to-end agent decision loops.
+Covers: JSON repair, Isotonic calibration monotonicity, ECE/Brier calculation, Multi-scorer aggregation, Uncertainty diagnosis, Router threshold transitions, High-stakes risk classification, SymPy/sandbox tool execution, End-to-end agent decision loops, Sentence-level verification segmentation, Human feedback knowledge base persistence, Threshold simulation API, and Adversarial preset endpoints.

@@ -115,9 +115,24 @@ except Exception as _e:
                 "tool": "web_search",
             }
 
+        # Deterministic offline mock mode check
+        if os.getenv("LLM_PROVIDER", "mock").lower() == "mock":
+            return {
+                "success": True,
+                "query": query,
+                "results": [
+                    {
+                        "title": f"Archived Index: {query[:30]}",
+                        "snippet": f"Authoritative documentation regarding {query}. Documented in public knowledge base.",
+                        "url": "https://local-archive.internal"
+                    }
+                ],
+                "tool": "web_search",
+            }
+
         try:
             from duckduckgo_search import DDGS
-            with DDGS() as ddgs:
+            with DDGS(timeout=3) as ddgs:
                 raw_results = list(ddgs.text(query, max_results=max_results))
                 formatted = [
                     {

@@ -6,6 +6,7 @@ from app.schemas import (
     ScorerSignal,
     ConfidenceReport,
     ClaimVerification,
+    SentenceVerification,
 )
 from app.confidence.calibration import calibrator
 
@@ -25,9 +26,12 @@ class ConfidenceAggregator:
         self,
         signals: List[ScorerSignal],
         claims: Optional[List[ClaimVerification]] = None,
+        sentences: Optional[List[SentenceVerification]] = None,
         is_high_stakes: bool = False,
+        has_human_verified_evidence: bool = False,
     ) -> ConfidenceReport:
         claims = claims or []
+        sentences = sentences or []
         
         # Weighted raw ensemble score
         raw_score = sum(s.score * s.weight for s in signals)
@@ -64,7 +68,9 @@ class ConfidenceAggregator:
             signals=signals,
             reasons=reasons,
             claims=claims,
+            sentences=sentences,
             plain_explanation="",  # Will be populated by explain.py
+            has_human_verified_evidence=has_human_verified_evidence,
         )
 
     def _diagnose_uncertainty(self, signals: List[ScorerSignal], is_high_stakes: bool) -> UncertaintyType:

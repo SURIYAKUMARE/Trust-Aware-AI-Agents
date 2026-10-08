@@ -272,3 +272,84 @@ def test_trust_agent_escalates_high_stakes():
     assert trace.final_route == ActionRoute.ESCALATE
     assert trace.requires_human_approval is True
     assert trace.escalation_id is not None
+
+
+# --- 9. EXTENDED CAPABILITIES (HEATMAP, FEEDBACK LOOP, SIMULATION, ADVERSARIAL) ---
+def test_sentence_level_verification():
+    from app.confidence.evidence import split_into_sentences
+    text = "The speed of light is 299,792 km/s. Mars has two moons. This is a third sentence."
+    sentences = split_into_sentences(text)
+    assert len(sentences) == 3
+    assert "299,792" in sentences[0]
+    
+    # Check evidence scorer outputs sentence verifications inside details
+    res = asyncio.run(evidence_scorer.score("What is light speed?", text))
+    assert "sentences" in res["details"]
+    assert len(res["details"]["sentences"]) >= 1
+    assert any(s["score"] > 0 for s in res["details"]["sentences"])
+
+def test_human_feedback_kb_persistence():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    client = TestClient(app)
+    
+    # 1. Trigger an escalation resolution
+    test_id = "test_feedback_123"
+    payload = {
+        "action": "APPROVE",
+        "human_note": "Verified by physical log",
+        "edited_action": "Verified by human supervisor: System quantum state remained stable."
+    }
+    
+    res = client.post(f"/api/escalations/{test_id}/resolve", json=payload)
+    assert res.status_code == 200
+    
+    # Check that human feedback file was persisted in KB
+    kb_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "kb"))
+    fb_path = os.path.join(kb_dir, f"human_feedback_{test_id}.txt")
+    assert os.path.exists(fb_path)
+    
+    with open(fb_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    assert "Verified by human supervisor" in content
+    
+    # Verify that evidence scorer detects human verified status
+    query = "System quantum state stability verification"
+    answer = "Verified by human supervisor: System quantum state remained stable."
+    ev_res = asyncio.run(evidence_scorer.score(query, answer))
+    assert ev_res["details"].get("has_human_verified_evidence", False) is True
+    
+    # Clean up test file
+    try:
+        os.remove(fb_path)
+    except Exception:
+        pass
+
+def test_threshold_simulation_endpoint():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    client = TestClient(app)
+    
+    payload = {"high_threshold": 0.90, "low_threshold": 0.50}
+    res = client.post("/api/metrics/simulate", json=payload)
+    assert res.status_code == 200
+    data = res.json()
+    assert "hallucination_rate" in data
+    assert "escalation_rate" in data
+    assert "selective_accuracy" in data
+    assert data["high_threshold"] == 0.90
+    assert data["low_threshold"] == 0.50
+
+def test_adversarial_presets_endpoint():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    client = TestClient(app)
+    
+    res = client.get("/api/adversarial/presets")
+    assert res.status_code == 200
+    presets = res.json()
+    assert len(presets) == 8
+    assert presets[0]["category"] == "Fabricated Entity"
+    assert presets[1]["title"] == "Einstein's 19th Century iPhone"
+    assert all("trap_type" in p and "baseline_behavior" in p and "trust_behavior" in p for p in presets)
+

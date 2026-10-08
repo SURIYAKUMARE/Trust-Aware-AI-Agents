@@ -47,16 +47,22 @@ class ConfidenceCalibrator:
     def fit(self, y_prob: List[float], y_true: List[int]):
         """Fit isotonic regression and Platt scaling on dev set probabilities and outcomes."""
         X = np.array(y_prob, dtype=np.float64).reshape(-1, 1)
-        y = np.array(y_true, dtype=np.int32)
+        y = np.array(y_true, dtype=np.float64)
+
+        # Include monotonic anchor points to prevent degenerate step-function collapse
+        anchors_X = np.array([0.0, 0.25, 0.50, 0.75, 1.0], dtype=np.float64)
+        anchors_y = np.array([0.05, 0.25, 0.52, 0.78, 0.96], dtype=np.float64)
+        X_all = np.concatenate([X.ravel(), anchors_X])
+        y_all = np.concatenate([y, anchors_y])
 
         # Isotonic regression (out-of-bounds clipping to [0, 1])
         iso = IsotonicRegression(out_of_bounds="clip", y_min=0.01, y_max=0.99)
-        iso.fit(X.ravel(), y)
+        iso.fit(X_all, y_all)
         self.isotonic = iso
 
         # Platt scaling (Logistic Regression on logits)
         platt = LogisticRegression(C=1.0, solver="lbfgs")
-        platt.fit(X, y)
+        platt.fit(X_all.reshape(-1, 1), (y_all >= 0.5).astype(int))
         self.platt = platt
 
         self.is_fitted = True
@@ -68,6 +74,8 @@ class ConfidenceCalibrator:
         
         if self.is_fitted and self.isotonic is not None:
             calibrated = float(self.isotonic.predict([clamped_raw])[0])
+            # Smooth blend with raw score to prevent plateau saturation
+            calibrated = 0.80 * calibrated + 0.20 * clamped_raw
             return round(max(0.02, min(0.98, calibrated)), 3)
         
         # Default monotonic identity mapping with slight conservative boundary temper

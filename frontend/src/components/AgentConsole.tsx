@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { DecisionTrace } from '../types';
 import { ConfidenceGauge } from './ConfidenceGauge';
 import { WhyUnsurePanel } from './WhyUnsurePanel';
+import { SentenceHeatmap } from './SentenceHeatmap';
+import { exportTracePdf } from '../utils/exportPdf';
 import { 
   Send, 
   Sparkles, 
@@ -13,7 +15,8 @@ import {
   ArrowRight,
   Terminal,
   HelpCircle,
-  RefreshCw
+  RefreshCw,
+  FileDown
 } from 'lucide-react';
 
 interface AgentConsoleProps {
@@ -114,7 +117,15 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
                       : 'bg-slate-900/90 border border-slate-800/80 text-slate-200 shadow-lg'
                   }`}
                 >
-                  <p className="whitespace-pre-wrap">{msg.text}</p>
+                  {msg.sender === 'agent' && msg.trace?.confidence_report?.sentences ? (
+                    <SentenceHeatmap
+                      sentences={msg.trace.confidence_report.sentences}
+                      rawText={msg.text}
+                      hasHumanVerifiedEvidence={msg.trace.confidence_report.has_human_verified_evidence}
+                    />
+                  ) : (
+                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                  )}
 
                   {/* TrustAgent Trace Details (if attached to this message) */}
                   {msg.trace && (
@@ -143,8 +154,16 @@ export const AgentConsole: React.FC<AgentConsoleProps> = ({
                           </div>
                         </div>
 
-                        {/* Cost & Latency badges */}
+                        {/* Cost, Latency badges & PDF Export */}
                         <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
+                          <button
+                            onClick={() => exportTracePdf(msg.trace!)}
+                            title="Download A4 PDF Audit Report"
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-indigo-600/30 border border-indigo-500/50 hover:bg-indigo-600/50 text-indigo-200 text-xs font-mono transition-colors cursor-pointer"
+                          >
+                            <FileDown className="w-3.5 h-3.5 text-indigo-400" />
+                            <span>PDF Audit</span>
+                          </button>
                           <span className="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded border border-slate-800">
                             <Clock className="w-3 h-3 text-slate-500" />
                             {Math.round(msg.trace.latency_ms)}ms

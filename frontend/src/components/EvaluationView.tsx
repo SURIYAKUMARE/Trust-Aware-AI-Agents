@@ -18,12 +18,18 @@ import {
   Layers, 
   BarChart2, 
   Sliders,
-  FileText
+  FileText,
+  Calculator,
+  DollarSign,
+  ShieldAlert
 } from 'lucide-react';
 
 export const EvaluationView: React.FC = () => {
   const [evalData, setEvalData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [costPerWrong, setCostPerWrong] = useState(150);
+  const [costPerEscalation, setCostPerEscalation] = useState(15);
+  const [queryScale, setQueryScale] = useState(10000);
 
   useEffect(() => {
     const fetchEval = async () => {
@@ -74,6 +80,23 @@ export const EvaluationView: React.FC = () => {
     { name: 'Reasoning Only', ece: 11.2, hallucination: 14.2 },
     { name: 'Full Ensemble (Calibrated)', ece: 4.1, hallucination: 4.4 },
   ];
+
+  // Risk-cost calculations
+  const baseHallucRate = (baseM.hallucination_rate?.baseline ?? baseM.hallucination_rate ?? 0.389);
+  const baseEscRate = 0.0;
+  const trustHallucRate = (baseM.hallucination_rate?.trust_agent ?? trustM.hallucination_rate ?? 0.044);
+  const trustEscRate = (trustM.escalation_rate ?? 0.156);
+
+  const baselineHallucCost = queryScale * baseHallucRate * costPerWrong;
+  const baselineEscCost = queryScale * baseEscRate * costPerEscalation;
+  const baselineTotalCost = baselineHallucCost + baselineEscCost;
+
+  const trustHallucCost = queryScale * trustHallucRate * costPerWrong;
+  const trustEscCost = queryScale * trustEscRate * costPerEscalation;
+  const trustTotalCost = trustHallucCost + trustEscCost;
+
+  const netSavings = baselineTotalCost - trustTotalCost;
+  const savingsPct = baselineTotalCost > 0 ? (netSavings / baselineTotalCost) * 100 : 0;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto w-full">
@@ -182,6 +205,135 @@ export const EvaluationView: React.FC = () => {
                 <Bar dataKey="hallucination" name="Hallucination (%)" fill="#F59E0B" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Risk-Cost Calculator Component */}
+      <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <Calculator className="w-5 h-5 text-emerald-400" />
+              <h3 className="text-sm font-bold text-white">Interactive Enterprise Risk-Cost Calculator</h3>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Simulate enterprise financial impact and net cost savings comparing Baseline Agent liability vs TrustAgent selective routing.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <span className="text-slate-400">Scale:</span>
+            {[90, 1000, 10000].map((scale) => (
+              <button
+                key={scale}
+                onClick={() => setQueryScale(scale)}
+                className={`px-2.5 py-1 rounded border transition-colors cursor-pointer ${
+                  queryScale === scale
+                    ? 'bg-emerald-600 text-white border-emerald-500'
+                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                }`}
+              >
+                {scale === 90 ? 'Eval Test (N=90)' : `${scale.toLocaleString()} Queries`}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Inputs */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="space-y-2 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-semibold text-rose-300 flex items-center gap-1.5">
+                <ShieldAlert className="w-4 h-4 text-rose-400" />
+                Cost per Wrong / Hallucinated Answer ($)
+              </span>
+              <span className="font-mono text-sm font-bold text-rose-400 bg-rose-950/60 px-2 py-0.5 rounded border border-rose-500/30">
+                ${costPerWrong}
+              </span>
+            </div>
+            <input
+              type="range"
+              min="20"
+              max="500"
+              step="10"
+              value={costPerWrong}
+              onChange={(e) => setCostPerWrong(parseInt(e.target.value))}
+              className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-rose-500"
+            />
+            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+              <span>$20 (Low impact)</span>
+              <span>$150 (Default: e.g. Support ticket / Misinformation)</span>
+              <span>$500 (High liability)</span>
+            </div>
+          </div>
+
+          <div className="space-y-2 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-semibold text-blue-300 flex items-center gap-1.5">
+                <DollarSign className="w-4 h-4 text-blue-400" />
+                Cost per Human Supervisor Review ($)
+              </span>
+              <span className="font-mono text-sm font-bold text-blue-400 bg-blue-950/60 px-2 py-0.5 rounded border border-blue-500/30">
+                ${costPerEscalation}
+              </span>
+            </div>
+            <input
+              type="range"
+              min="2"
+              max="60"
+              step="1"
+              value={costPerEscalation}
+              onChange={(e) => setCostPerEscalation(parseInt(e.target.value))}
+              className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+            />
+            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+              <span>$2 (Quick review)</span>
+              <span>$15 (Default: 5 min SME auditor)</span>
+              <span>$60 (Senior compliance)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Calculated Financial Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-1">
+          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
+            <span className="text-[10px] uppercase font-mono text-slate-400 block">Baseline Agent Cost</span>
+            <span className="text-2xl font-black text-rose-400">
+              ${Math.round(baselineTotalCost).toLocaleString()}
+            </span>
+            <span className="text-[10px] text-slate-500 block mt-0.5">
+              {Math.round(queryScale * baseHallucRate)} wrong answers × ${costPerWrong}
+            </span>
+          </div>
+
+          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
+            <span className="text-[10px] uppercase font-mono text-slate-400 block">TrustAgent Total Cost</span>
+            <span className="text-2xl font-black text-blue-400">
+              ${Math.round(trustTotalCost).toLocaleString()}
+            </span>
+            <span className="text-[10px] text-slate-500 block mt-0.5">
+              ${Math.round(trustHallucCost).toLocaleString()} err + ${Math.round(trustEscCost).toLocaleString()} review
+            </span>
+          </div>
+
+          <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/40">
+            <span className="text-[10px] uppercase font-mono text-emerald-400 block">Net Dollar Savings</span>
+            <span className="text-2xl font-black text-emerald-400">
+              +${Math.round(netSavings).toLocaleString()}
+            </span>
+            <span className="text-[10px] text-emerald-300/80 block mt-0.5">
+              Prevented operational fallout
+            </span>
+          </div>
+
+          <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/40">
+            <span className="text-[10px] uppercase font-mono text-emerald-400 block">Risk Reduction ROI</span>
+            <span className="text-2xl font-black text-emerald-300">
+              {savingsPct.toFixed(1)}%
+            </span>
+            <span className="text-[10px] text-emerald-300/80 block mt-0.5">
+              Net enterprise cost reduction
+            </span>
           </div>
         </div>
       </div>

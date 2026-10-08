@@ -15,6 +15,7 @@ from app.schemas import (
     DecisionTrace,
     EscalationItem,
     ClaimVerification,
+    SentenceVerification,
 )
 from app.confidence.self_consistency import self_consistency_scorer
 from app.confidence.verbalized import verbalized_scorer
@@ -305,13 +306,24 @@ class TrustAgent:
             ),
         ]
 
-        # Extract claims from evidence details
+        # Extract claims and sentences from evidence details
         claims = [
             ClaimVerification(**c) if isinstance(c, dict) else c
             for c in s3["details"].get("claims", [])
         ]
+        sentences = [
+            SentenceVerification(**s) if isinstance(s, dict) else s
+            for s in s3["details"].get("sentences", [])
+        ]
+        has_human = bool(s3["details"].get("has_human_verified_evidence", False))
 
-        report = aggregator.aggregate(signals, claims=claims, is_high_stakes=is_high_stakes)
+        report = aggregator.aggregate(
+            signals, 
+            claims=claims, 
+            sentences=sentences,
+            is_high_stakes=is_high_stakes,
+            has_human_verified_evidence=has_human
+        )
         report = explainer.enrich_report(report, query)
         return report
 

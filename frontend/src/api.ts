@@ -3,7 +3,9 @@ import {
   CompareResult, 
   EscalationItem, 
   MetricsResponse, 
-  DemoScenario 
+  DemoScenario,
+  SimulationResponse,
+  AdversarialPreset,
 } from './types';
 
 const API_BASE = '/api';
@@ -45,6 +47,12 @@ export const api = {
     return res.json();
   },
 
+  async listTraces(): Promise<DecisionTrace[]> {
+    const res = await fetch(`${API_BASE}/traces`);
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    return res.json();
+  },
+
   async listEscalations(): Promise<EscalationItem[]> {
     const res = await fetch(`${API_BASE}/escalations`);
     if (!res.ok) throw new Error(`HTTP error ${res.status}`);
@@ -72,6 +80,16 @@ export const api = {
     return res.json();
   },
 
+  async simulateThresholds(highThreshold: number, lowThreshold: number): Promise<SimulationResponse> {
+    const res = await fetch(`${API_BASE}/metrics/simulate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ high_threshold: highThreshold, low_threshold: lowThreshold }),
+    });
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    return res.json();
+  },
+
   async getEvalResults(): Promise<any> {
     const res = await fetch(`${API_BASE}/eval/results`);
     if (!res.ok) throw new Error(`HTTP error ${res.status}`);
@@ -89,4 +107,11 @@ export const api = {
     if (!res.ok) throw new Error(`HTTP error ${res.status}`);
     return res.json();
   },
+
+  async getAdversarialPresets(): Promise<AdversarialPreset[]> {
+    const res = await fetch(`${API_BASE}/adversarial/presets`);
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    return res.json();
+  },
 };
+

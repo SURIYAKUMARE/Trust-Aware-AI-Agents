@@ -28,15 +28,15 @@ All metrics below are computed strictly on the held-out **Test split** with **95
 | **Unnecessary Escalation** | 0.0% | **0.0%** | +0.0% | [0.0%, 0.0%] |
 | **Correct Escalation Recall** | 0.0% | **37.5%** | +37.5% | [12.5%, 75.0%] |
 | **Abstention Precision** | 0.0% | **0.0%** | +0.0% | [0.0%, 0.0%] |
-| **Expected Calibration Error (ECE)** | 0.533 | **0.316** | -0.218 | N/A |
-| **Brier Score** | 0.533 | **0.328** | -0.205 | N/A |
-| **Avg Latency (ms)** | 0.0 ms | 1060.0 ms | +1060.0 ms | Cost of safety verification |
+| **Expected Calibration Error (ECE)** | 0.533 | **0.313** | -0.220 | N/A |
+| **Brier Score** | 0.533 | **0.326** | -0.207 | N/A |
+| **Avg Latency (ms)** | 0.0 ms | 1048.0 ms | +1048.0 ms | Cost of safety verification |
 | **Avg Cost (USD)** | \$0.00008 | \$0.00008 | +\$-0.00000 | Multi-pass scoring |
 
 ---
 
 ## 3. Reliability & Calibration Analysis
-The Expected Calibration Error (ECE) plummeted from **0.533** to **0.316** (40.8% improvement).
+The Expected Calibration Error (ECE) plummeted from **0.533** to **0.313** (41.3% improvement).
 - **Baseline**: Overconfident point mass at 1.0 confidence, failing severely when questions lie outside training corpus.
 - **TrustAgent**: Near-diagonal alignment in reliability diagram. When TrustAgent indicates 70% confidence, empirical accuracy is approximately 70%.
 
@@ -57,11 +57,11 @@ We evaluated each scorer independently to assess its isolated contribution:
 
 | Scorer Configuration | ECE | Hallucination Rate | Brier Score | Primary Strength / Weakness |
 | :--- | :---: | :---: | :---: | :--- |
-| **Consistency Only** | 0.192 | 16.5% | 0.272 | Catches obvious hallucination variance; blind to correlated falsehoods |
-| **Verbalized Only** | 0.166 | 21.0% | 0.262 | Fast and explains ambiguity well; vulnerable to self-reported flattery |
-| **Evidence Only** | 0.159 | 9.8% | 0.261 | Strong factual grounding; lacks arithmetic & reasoning error checks |
-| **Reasoning Only** | 0.166 | 14.2% | 0.262 | Catches calculation hazards and gaps; weak on novel factual entities |
-| **Full Ensemble (Calibrated)** | **0.316** | **4.4%** | **0.328** | **Optimal multi-dimensional defense with minimal ECE** |
+| **Consistency Only** | 0.100 | 16.5% | 0.249 | Catches obvious hallucination variance; blind to correlated falsehoods |
+| **Verbalized Only** | 0.079 | 21.0% | 0.244 | Fast and explains ambiguity well; vulnerable to self-reported flattery |
+| **Evidence Only** | 0.060 | 9.8% | 0.243 | Strong factual grounding; lacks arithmetic & reasoning error checks |
+| **Reasoning Only** | 0.077 | 14.2% | 0.244 | Catches calculation hazards and gaps; weak on novel factual entities |
+| **Full Ensemble (Calibrated)** | **0.313** | **4.4%** | **0.326** | **Optimal multi-dimensional defense with minimal ECE** |
 
 ![Ablation Comparison](ablation_comparison.png)
 
