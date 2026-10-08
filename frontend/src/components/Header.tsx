@@ -13,7 +13,9 @@ import {
   ShieldCheck, 
   Flame,
   Settings,
-  Menu
+  Menu,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 export type TabType = 
@@ -36,6 +38,8 @@ interface HeaderProps {
   currentProfile?: ModelProfile;
   onSelectProfile?: (profile: ModelProfile) => void;
   onToggleSidebar?: () => void;
+  theme?: 'dark' | 'light';
+  onToggleTheme?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -47,6 +51,8 @@ export const Header: React.FC<HeaderProps> = ({
   currentProfile = 'auto',
   onSelectProfile,
   onToggleSidebar,
+  theme = 'dark',
+  onToggleTheme,
 }) => {
   const tabs: Array<{ id: TabType; label: string; icon: React.ReactNode; badge?: number }> = [
     { id: 'console', label: 'Chat Assistant', icon: <Bot className="w-4 h-4" /> },
@@ -135,9 +141,19 @@ export const Header: React.FC<HeaderProps> = ({
             })}
           </nav>
 
-          {/* Settings Trigger */}
-          {onOpenSettings && (
-            <div className="shrink-0 flex items-center">
+          {/* Right Controls: Theme Toggle & Settings */}
+          <div className="shrink-0 flex items-center gap-1.5">
+            {onToggleTheme && (
+              <button
+                onClick={onToggleTheme}
+                title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-blue-500/50 text-slate-300 hover:text-white transition-all cursor-pointer shadow-sm"
+              >
+                {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-blue-400" />}
+              </button>
+            )}
+
+            {onOpenSettings && (
               <button
                 onClick={onOpenSettings}
                 title="Configure AI Model & Keys"
@@ -146,8 +162,8 @@ export const Header: React.FC<HeaderProps> = ({
                 <Settings className="w-4 h-4 text-slate-400 group-hover:rotate-45 transition-transform" />
                 <span className="hidden xl:inline font-mono text-[11px]">{currentProvider}</span>
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </header>

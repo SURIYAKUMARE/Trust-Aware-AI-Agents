@@ -158,6 +158,7 @@ export const ConversationalChatView: React.FC<ConversationalChatViewProps> = ({
                 onRegenerate={msg.sender === 'agent' ? onRegenerateResponse : undefined}
                 onOpenTrustReport={handleOpenTrustReport}
                 onFeedback={handleFeedback}
+                onSelectFollowUp={(followUpQuery) => onSendMessage(followUpQuery)}
               />
             ))}
 

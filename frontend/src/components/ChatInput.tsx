@@ -233,6 +233,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
         {/* Input Tools & Send Action */}
         <div className="flex items-center gap-1 shrink-0 pb-0.5">
+          {/* Clear text button */}
+          {text.trim().length > 0 && !isLoading && (
+            <button
+              type="button"
+              onClick={() => {
+                setText('');
+                if (textareaRef.current) textareaRef.current.style.height = 'auto';
+              }}
+              title="Clear input"
+              className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+
           {/* File Upload Trigger */}
           <input
             type="file"

@@ -144,39 +144,71 @@ export const TrustReportModal: React.FC<TrustReportModalProps> = ({
         <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
           {activeTab === 'overview' && (
             <>
-              {/* Score Gauge & Plain Summary */}
-              <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 flex flex-col sm:flex-row items-center gap-5">
-                <div className="shrink-0 flex flex-col items-center">
-                  <ConfidenceGauge
-                    score={trace.final_confidence}
-                    level={report.level}
-                    size={88}
-                    showDetails={false}
-                  />
-                  <span className="text-xs font-bold text-slate-300 mt-1">
-                    {scorePct}% Confidence
-                  </span>
-                </div>
-                <div className="flex-1 text-center sm:text-left">
-                  <h4 className="text-sm font-bold text-white flex items-center gap-2 justify-center sm:justify-start">
-                    <span>Why did TrustGuard choose this action?</span>
-                  </h4>
-                  <p className="text-xs text-slate-300 leading-relaxed mt-1">
-                    {report.plain_explanation || 'All statements are supported by verified corpus evidence, reasoning steps are coherent, and consensus was validated.'}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-slate-800/80 text-[11px] font-mono text-slate-400">
-                    <span>Risk Level:</span>
-                    <span className={`px-2 py-0.2 rounded-full font-bold ${
-                      riskLevel === 'CRITICAL' ? 'bg-rose-950 text-rose-300 border border-rose-500/40' :
-                      riskLevel === 'HIGH' ? 'bg-orange-950 text-orange-300 border border-orange-500/40' :
-                      riskLevel === 'MEDIUM' ? 'bg-amber-950 text-amber-300 border border-amber-500/40' :
-                      'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
-                    }`}>
-                      {riskLevel}
+              {/* Executive Trust Report Card */}
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3.5">
+                <div className="flex flex-col sm:flex-row items-center gap-5">
+                  <div className="shrink-0 flex flex-col items-center">
+                    <ConfidenceGauge
+                      score={trace.final_confidence}
+                      level={report.level}
+                      size={88}
+                      showDetails={false}
+                    />
+                    <span className="text-xs font-bold text-white mt-1">
+                      {scorePct}% Confidence
                     </span>
-                    <span className="ml-2">Uncertainty:</span>
-                    <span className="text-blue-300">{report.uncertainty_type}</span>
                   </div>
+
+                  <div className="flex-1 w-full space-y-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                      <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                        <span className="text-[10px] text-slate-500 uppercase font-mono block">Evidence</span>
+                        <span className="font-bold text-emerald-400">
+                          {evidenceQuality >= 80 ? '✓ Strong' : evidenceQuality >= 50 ? '• Moderate' : '✕ Limited'} ({evidenceQuality}%)
+                        </span>
+                      </div>
+
+                      <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                        <span className="text-[10px] text-slate-500 uppercase font-mono block">Source Reliability</span>
+                        <span className="font-bold text-blue-400">
+                          {sourceReliability >= 80 ? '✓ High' : sourceReliability >= 50 ? '• Medium' : '✕ Low'} ({sourceReliability}%)
+                        </span>
+                      </div>
+
+                      <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                        <span className="text-[10px] text-slate-500 uppercase font-mono block">Consistency</span>
+                        <span className="font-bold text-purple-400">
+                          {modelAgreement >= 80 ? '✓ High' : modelAgreement >= 50 ? '• Moderate' : '✕ Conflicting'} ({modelAgreement}%)
+                        </span>
+                      </div>
+
+                      <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                        <span className="text-[10px] text-slate-500 uppercase font-mono block">Risk</span>
+                        <span className={`font-bold ${
+                          riskLevel === 'CRITICAL' ? 'text-rose-400' :
+                          riskLevel === 'HIGH' ? 'text-orange-400' :
+                          riskLevel === 'MEDIUM' ? 'text-amber-400' : 'text-emerald-400'
+                        }`}>
+                          {riskLevel}
+                        </span>
+                      </div>
+
+                      <div className="p-2 rounded-lg bg-slate-900 border border-slate-800 col-span-1 sm:col-span-2">
+                        <span className="text-[10px] text-slate-500 uppercase font-mono block">Decision</span>
+                        <span className="font-bold text-slate-200">
+                          {routeInfo.label}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Why Explanation */}
+                <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800/80 text-xs">
+                  <span className="font-bold text-white block mb-0.5">Why did TrustGuard choose this?</span>
+                  <p className="text-slate-300 leading-relaxed text-[11px]">
+                    "{report.plain_explanation || 'Multiple reliable sources support the answer, reasoning steps are logically consistent, and no significant conflicts were detected.'}"
+                  </p>
                 </div>
               </div>
 

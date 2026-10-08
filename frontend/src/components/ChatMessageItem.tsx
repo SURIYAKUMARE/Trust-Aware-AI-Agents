@@ -17,7 +17,11 @@ import {
   FileText, 
   Image,
   Clock,
-  DollarSign
+  DollarSign,
+  Sparkles,
+  ArrowRight,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 
 interface ChatMessageItemProps {
@@ -25,6 +29,7 @@ interface ChatMessageItemProps {
   onRegenerate?: () => void;
   onOpenTrustReport: (trace: DecisionTrace) => void;
   onFeedback?: (messageId: string, feedback: 'helpful' | 'unhelpful') => void;
+  onSelectFollowUp?: (query: string) => void;
 }
 
 export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
@@ -32,9 +37,11 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   onRegenerate,
   onOpenTrustReport,
   onFeedback,
+  onSelectFollowUp,
 }) => {
   const [copied, setCopied] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const isUser = message.sender === 'user';
   const trace = message.trace;
@@ -46,27 +53,73 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleSpeak = () => {
+    if (!('speechSynthesis' in window)) return;
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    } else {
+      window.speechSynthesis.cancel();
+      // Remove markdown formatting from spoken text
+      const cleanText = message.text.replace(/[*#`_$[\]]/g, '').trim();
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+      setIsSpeaking(true);
+    }
+  };
+
   const getTrustBadgeStyle = () => {
-    if (!trace) return { text: '🛡️ Trust: 92%', bg: 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40' };
+    if (!trace) return { text: '🛡️ Trust 92%', bg: 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40 hover:bg-emerald-900/80' };
     if (trace.requires_human_approval) {
-      return { text: `⚠️ Review: ${scorePct}%`, bg: 'bg-rose-950 text-rose-300 border-rose-500/50' };
+      return { text: `⚠️ Review ${scorePct}%`, bg: 'bg-rose-950 text-rose-300 border-rose-500/50 hover:bg-rose-900' };
     }
     if (trace.final_route === 'CLARIFY') {
-      return { text: `❓ Clarify: ${scorePct}%`, bg: 'bg-amber-950 text-amber-300 border-amber-500/50' };
+      return { text: `❓ Clarify ${scorePct}%`, bg: 'bg-amber-950 text-amber-300 border-amber-500/50 hover:bg-amber-900' };
     }
     if (trace.final_route === 'ABSTAIN') {
-      return { text: `🚫 Abstain: ${scorePct}%`, bg: 'bg-rose-950 text-rose-300 border-rose-500/50' };
+      return { text: `🚫 Abstain ${scorePct}%`, bg: 'bg-rose-950 text-rose-300 border-rose-500/50 hover:bg-rose-900' };
     }
     if (trace.final_confidence >= 0.8) {
-      return { text: `🛡️ Trust: ${scorePct}%`, bg: 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40' };
+      return { text: `🛡️ Trust ${scorePct}%`, bg: 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40 hover:bg-emerald-900/80' };
     }
-    return { text: `🛡️ Trust: ${scorePct}%`, bg: 'bg-blue-950 text-blue-300 border-blue-500/40' };
+    return { text: `🛡️ Trust ${scorePct}%`, bg: 'bg-blue-950 text-blue-300 border-blue-500/40 hover:bg-blue-900' };
   };
 
   const trustBadge = getTrustBadgeStyle();
 
+  // Extract interactive follow-up suggestions from AI response text
+  const extractFollowUps = (rawText: string) => {
+    const markerRegex = /###\s*(?:You can also ask|Suggested Follow-ups|Follow-up Questions):?/i;
+    const match = rawText.search(markerRegex);
+    if (match === -1) {
+      return { mainContent: rawText, followUps: [] };
+    }
+
+    const mainContent = rawText.substring(0, match).trim();
+    const followUpSection = rawText.substring(match);
+    const lines = followUpSection.split('\n');
+    const followUps: string[] = [];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      const qMatch = trimmed.match(/^(?:[-*•]|\d+\.)\s*["“']?(.*?)["”']?$/);
+      if (qMatch && qMatch[1] && !markerRegex.test(trimmed)) {
+        const cleanQ = qMatch[1].replace(/^["']|["']$/g, '').trim();
+        if (cleanQ.length > 5 && cleanQ.length < 130) {
+          followUps.push(cleanQ);
+        }
+      }
+    }
+
+    return { mainContent, followUps };
+  };
+
+  const { mainContent, followUps } = isUser ? { mainContent: message.text, followUps: [] } : extractFollowUps(message.text);
+
   return (
-    <div className={`py-4 px-3 sm:px-6 flex gap-4 transition-colors ${
+    <div className={`py-4 px-3 sm:px-6 flex gap-3.5 transition-colors ${
       isUser ? 'bg-transparent' : 'bg-slate-900/30 border-y border-slate-900/50'
     }`}>
       {/* Avatar */}
@@ -104,7 +157,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
           {!isUser && trace && (
             <button
               onClick={() => onOpenTrustReport(trace)}
-              title="Click to view detailed Trust Report & Signal Calibration"
+              title="Click to view full Trust Report & Signal Calibration"
               className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold border transition-all cursor-pointer hover:scale-105 shadow-sm ${trustBadge.bg}`}
             >
               <span>{trustBadge.text}</span>
@@ -141,13 +194,35 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               hasHumanVerifiedEvidence={trace.confidence_report.has_human_verified_evidence}
             />
           ) : (
-            <MarkdownRenderer content={message.text} />
+            <MarkdownRenderer content={mainContent} />
           )}
 
           {message.isStreaming && (
             <span className="inline-block w-2 h-4 ml-1 bg-blue-400 animate-pulse align-middle" />
           )}
         </div>
+
+        {/* Interactive Follow-Up Suggestion Pills */}
+        {!isUser && followUps.length > 0 && (
+          <div className="pt-2.5 space-y-1.5">
+            <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>Suggested Follow-ups</span>
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {followUps.map((q, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => onSelectFollowUp && onSelectFollowUp(q)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-blue-500/50 text-xs text-blue-300 hover:text-white font-medium transition-all cursor-pointer flex items-center gap-1.5 hover:scale-[1.01] shadow-sm text-left group"
+                >
+                  <span>{q}</span>
+                  <ArrowRight className="w-3 h-3 text-slate-500 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Sources Cited (if present) */}
         {!isUser && trace?.sources && trace.sources.length > 0 && (
@@ -172,6 +247,17 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                 <span className="text-[11px]">{copied ? 'Copied' : 'Copy'}</span>
+              </button>
+
+              <button
+                onClick={handleSpeak}
+                title={isSpeaking ? 'Stop speaking' : 'Read aloud (Text-to-Speech)'}
+                className={`flex items-center gap-1 p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  isSpeaking ? 'text-blue-400 bg-blue-950/60' : 'hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                {isSpeaking ? <VolumeX className="w-3.5 h-3.5 text-blue-400" /> : <Volume2 className="w-3.5 h-3.5" />}
+                <span className="text-[11px] hidden sm:inline">{isSpeaking ? 'Stop' : 'Read'}</span>
               </button>
 
               {onRegenerate && (

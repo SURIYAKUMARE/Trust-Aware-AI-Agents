@@ -31,6 +31,23 @@ export function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [modelProfile, setModelProfile] = useState<ModelProfile>('auto');
   const [providerLabel, setProviderLabel] = useState<string>('🛡️ TrustEngine');
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      const stored = localStorage.getItem('trustguard_theme');
+      if (stored === 'light' || stored === 'dark') return stored;
+    } catch {}
+    return 'dark';
+  });
+
+  const toggleTheme = () => {
+    setTheme(prev => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      try {
+        localStorage.setItem('trustguard_theme', next);
+      } catch {}
+      return next;
+    });
+  };
 
   // Modals state
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
@@ -285,7 +302,9 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-200 selection:bg-blue-600 selection:text-white ${
+      theme === 'light' ? 'bg-slate-100 text-slate-800' : 'bg-slate-950 text-slate-100'
+    }`}>
       {/* Top Header */}
       <Header
         activeTab={activeTab}
@@ -299,6 +318,8 @@ export function App() {
         currentProfile={modelProfile}
         onSelectProfile={setModelProfile}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       {/* Error alert toast if present */}

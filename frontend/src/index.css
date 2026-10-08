@@ -35,3 +35,43 @@
 .glow-rose {
   box-shadow: 0 0 25px -5px rgba(244, 63, 94, 0.25);
 }
+
+/* Light mode overrides */
+.light-mode {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+.light-mode header {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-color: #e2e8f0 !important;
+}
+.light-mode aside {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+.light-mode main {
+  background-color: #f8fafc !important;
+}
+.light-mode .bg-slate-950 {
+  background-color: #ffffff !important;
+}
+.light-mode .bg-slate-900 {
+  background-color: #f1f5f9 !important;
+}
+.light-mode .bg-slate-900\/30 {
+  background-color: rgba(241, 245, 249, 0.6) !important;
+}
+.light-mode .border-slate-800 {
+  border-color: #e2e8f0 !important;
+}
+.light-mode .text-slate-100,
+.light-mode .text-white {
+  color: #0f172a !important;
+}
+.light-mode .text-slate-200,
+.light-mode .text-slate-300 {
+  color: #334155 !important;
+}
+.light-mode .text-slate-400 {
+  color: #64748b !important;
+}
