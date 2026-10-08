@@ -24,9 +24,11 @@ export const ConsensusResultCard: React.FC<ConsensusResultCardProps> = ({ consen
   const [showClaimMatrix, setShowClaimMatrix] = useState<boolean>(false);
 
   const occurrencePercent = Math.round(consensus.occurrence_rate * 100);
+  const isRefuted = consensus.consensus_level === 'REFUTED';
 
   // Badge color based on occurrence rate
   const getRateColor = (rate: number) => {
+    if (isRefuted) return 'text-rose-400 bg-rose-950/80 border-rose-500/40';
     if (rate >= 0.9) return 'text-emerald-400 bg-emerald-950/80 border-emerald-500/40';
     if (rate >= 0.7) return 'text-blue-400 bg-blue-950/80 border-blue-500/40';
     if (rate >= 0.5) return 'text-amber-400 bg-amber-950/80 border-amber-500/40';
@@ -61,7 +63,13 @@ export const ConsensusResultCard: React.FC<ConsensusResultCardProps> = ({ consen
               </span>
             </div>
             <h4 className="text-sm font-semibold text-white mt-0.5">
-              Cross-Model Occurrence Rate: <span className="text-emerald-400 font-mono font-bold">{occurrencePercent}%</span>
+              Cross-Model Occurrence Rate:{' '}
+              <span className={`font-mono font-bold ${isRefuted ? 'text-rose-400' : 'text-emerald-400'}`}>
+                {isRefuted ? '0%' : `${occurrencePercent}%`}
+              </span>
+              {isRefuted && (
+                <span className="ml-2 text-xs text-rose-300 font-normal">(Claim REFUTED — Misinformation)</span>
+              )}
             </h4>
           </div>
         </div>
@@ -82,8 +90,12 @@ export const ConsensusResultCard: React.FC<ConsensusResultCardProps> = ({ consen
 
       {/* Outlier / Hallucination Warning if applicable */}
       {consensus.outlier_warnings.length > 0 && (
-        <div className="px-4 py-3 bg-amber-950/40 border-b border-amber-500/30 text-xs text-amber-300 flex items-start gap-2.5">
-          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+        <div className={`px-4 py-3 border-b text-xs flex items-start gap-2.5 ${
+          isRefuted
+            ? 'bg-rose-950/50 border-rose-500/40 text-rose-200'
+            : 'bg-amber-950/40 border-amber-500/30 text-amber-300'
+        }`}>
+          <AlertTriangle className={`w-4 h-4 shrink-0 mt-0.5 ${isRefuted ? 'text-rose-400' : 'text-amber-400'}`} />
           <div className="space-y-1">
             {consensus.outlier_warnings.map((w, idx) => (
               <p key={idx} className="leading-relaxed font-medium">{w}</p>

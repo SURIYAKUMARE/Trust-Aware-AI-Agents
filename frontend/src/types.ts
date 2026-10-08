@@ -344,7 +344,7 @@ export interface MultiAIConsensusResult {
   occurrence_rate: number; // 0.0 to 1.0 (e.g. 0.80 = 80%)
   total_models_queried: number;
   agreeing_models_count: number;
-  consensus_level: 'UNANIMOUS' | 'STRONG_CONSENSUS' | 'MAJORITY' | 'DIVIDED' | 'OUTLIER_REJECTED';
+  consensus_level: 'UNANIMOUS' | 'STRONG_CONSENSUS' | 'MAJORITY' | 'DIVIDED' | 'OUTLIER_REJECTED' | 'REFUTED';
   model_answers: AIModelAnswer[];
   claim_occurrences: ClaimOccurrence[];
   outlier_warnings: string[];

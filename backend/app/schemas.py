@@ -320,7 +320,7 @@ class MultiAIConsensusResponse(BaseModel):
     occurrence_rate: float  # 0.0 to 1.0 (e.g. 0.80 = 80%)
     total_models_queried: int
     agreeing_models_count: int
-    consensus_level: Literal["UNANIMOUS", "STRONG_CONSENSUS", "MAJORITY", "DIVIDED", "OUTLIER_REJECTED"]
+    consensus_level: Literal["UNANIMOUS", "STRONG_CONSENSUS", "MAJORITY", "DIVIDED", "OUTLIER_REJECTED", "REFUTED"]
     model_answers: List[AIModelAnswer]
     claim_occurrences: List[ClaimOccurrence] = Field(default_factory=list)
     outlier_warnings: List[str] = Field(default_factory=list)
