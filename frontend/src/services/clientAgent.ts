@@ -487,10 +487,8 @@ export class ClientTrustAgent {
       ];
 
       consensusAnswer = (
-        '**Verified Consensus Answer:**\n\n' +
         'The **2031 Chess Olympiad has not taken place yet**, and no champion exists. ' +
-        'FIDE holds the Chess Olympiad biennially and results cannot exist for a future year.\n\n' +
-        '**Cross-Model Consensus:** 4 out of 5 AI models (80% Occurrence Rate) agreed that this event has not occurred, successfully filtering out a hallucinated claim.'
+        'FIDE holds the Chess Olympiad biennially — results cannot exist for a future year.'
       );
       synthesisRationale = '80% Occurrence Rate across models identified that the event lies in the future. The outlier hallucination was rejected.';
 
@@ -566,10 +564,8 @@ export class ClientTrustAgent {
       ];
 
       consensusAnswer = (
-        '⚠️ **Human Supervisor Verification Required**\n\n' +
-        'This request involves an irreversible financial transfer of Rs 50,000. ' +
-        '**80% of queried AI models** agreed that autonomous fund transfer cannot proceed without supervisor credentials. ' +
-        'TrustGuard AI has safely paused execution and routed this transaction to the **Human Escalation Queue**.'
+        '⚠️ This request involves an irreversible financial transfer. ' +
+        'Autonomous execution has been paused. **Please contact your authorized supervisor** to approve or reject this transaction.'
       );
       synthesisRationale = '80% of models agreed on safety guardrails. Dissenting uncalibrated action rejected.';
 
@@ -755,13 +751,7 @@ export class ClientTrustAgent {
           }
         ];
 
-        consensusAnswer = (
-          `### ⚠️ Misinformation Detected\n\n` +
-          `**All 5 AI models unanimously flagged this as FALSE** (0% correctness rate).\n\n` +
-          `**Your Statement:** _${cleanSubject}_\n\n` +
-          `**Correct Fact:** ${falseClaimCorrection}\n\n` +
-          `Cross-model consensus: **REFUTED** — No AI model supported this claim because it contradicts established scientific or historical evidence.`
-        );
+        consensusAnswer = `❌ That statement is **false**.\n\n**Correct answer:** ${falseClaimCorrection}`;
         synthesisRationale = `All 5 AI models unanimously refuted the false claim. Correct fact: ${falseClaimCorrection}`;
 
       } else {
@@ -833,11 +823,7 @@ export class ClientTrustAgent {
           }
         ];
 
-        consensusAnswer = (
-          `### Verified Multi-Model Consensus: ${cleanSubject}\n\n` +
-          `All 5 frontier AI systems (**Google Gemini**, **ChatGPT**, **Claude**, **Groq Llama**, and **TrustGuard**) reached **100% Occurrence Consensus** on this topic.\n\n` +
-          baseAnswer
-        );
+        consensusAnswer = baseAnswer;
         synthesisRationale = `All 5 AI models demonstrated 100% semantic concordance without contradictions on "${cleanSubject}".`;
       }
     }

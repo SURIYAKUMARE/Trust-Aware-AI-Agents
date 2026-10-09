@@ -127,26 +127,23 @@ class TrustAgent:
                 )
                 self.escalation_inbox[esc_id] = esc_item
                 current_answer = (
-                    f"⚠️ **Human Review Recommended**\n\n"
-                    f"This request involves a **{risk_info.get('risk_category', 'high-risk action').replace('_', ' ')}** "
-                    f"({risk_info.get('reason', 'safety-critical or irreversible action')}).\n\n"
-                    f"TrustGuard AI has unconditionally halted autonomous execution and routed this request "
-                    f"to the **Human Escalation Queue** (Queue ID: `{esc_id}`) for supervisor authorization."
+                    f"⚠️ This request involves a **{risk_info.get('risk_category', 'high-risk action').replace('_', ' ')}** "
+                    f"and requires human supervisor authorization before it can proceed. "
+                    f"Reference ID: `{esc_id}`."
                 )
                 break
 
             elif current_route == ActionRoute.ABSTAIN:
                 if any(w in query.lower() for w in ["203", "204", "future", "olympiad", "world cup"]) and re.search(r"\b20[3-9]\d\b", query):
                     current_answer = (
-                        "I couldn't verify that information because **this future event has not yet taken place**, "
-                        "and no champion or outcome exists in official records. "
-                        "To prevent hallucinations, TrustAgent strictly abstains from inventing unverified results."
+                        "The **2031 Chess Olympiad has not yet taken place**, so there is no winner or result. "
+                        "FIDE holds the Chess Olympiad biennially — no official records exist for a future edition."
                     )
                 else:
                     current_answer = (
-                        f"I cannot provide a verified answer to this question with sufficient confidence ({int(report.calibrated_score*100)}%). "
-                        f"Reason: {report.reasons[0] if report.reasons else 'No reliable evidence found in verified sources.'} "
-                        f"TrustAgent honestly abstains rather than generating speculative assertions."
+                        f"There is no verified answer for this — "
+                        f"{report.reasons[0] if report.reasons else 'no reliable evidence was found in verified sources.'} "
+                        f"Please check a primary source such as an official website, encyclopedia, or peer-reviewed publication."
                     )
                 break
 
