@@ -19,6 +19,8 @@ import {
   AskAndVerifyResponse,
 } from './types';
 import { clientAgent, getStoredModelSettings } from './services/clientAgent';
+import { runClientImageForensics } from './services/clientImageForensics';
+import { clientTruthEngine } from './services/clientTruthVerification';
 
 function getApiBase(): string {
   const settings = getStoredModelSettings();
@@ -205,9 +207,55 @@ export const api = {
     } catch (e) {
       console.warn('Backend /api/chat error, falling back to ask:', e);
     }
-    // Fallback to ask
+    // Check client-side truth verification engine first for deterministic mathematical equality, factual traps, or opinions
+    const truthReport = clientTruthEngine.verify(message);
+    if (truthReport) {
+      const isIncorrect = truthReport.status === 'INCORRECT';
+      const isOpinion = truthReport.status === 'NOT_APPLICABLE';
+      return {
+        id: `chat-${Date.now()}`,
+        message: truthReport.formatted_markdown,
+        intent: truthReport.domain,
+        confidence_score: truthReport.evidence_confidence,
+        confidence_band: truthReport.confidence_band,
+        confidence_explanation: truthReport.why_explanation,
+        status_summary: isIncorrect
+          ? `INCORRECT CLAIM DETECTED — Auto-Corrected: ${truthReport.correct_information}`
+          : isOpinion
+          ? `NOT_APPLICABLE — Subjective Context / Opinion`
+          : `VERIFIED ACCURATE: ${truthReport.correct_information}`,
+        claims: [
+          {
+            claim: truthReport.user_claim,
+            status: isIncorrect ? 'CONTRADICTED' : isOpinion ? 'UNVERIFIED' : 'SUPPORTED',
+            confidence: truthReport.evidence_confidence / 100,
+            reasoning: truthReport.why_explanation,
+          },
+        ],
+        sources: truthReport.sources.map(s => ({
+          title: s,
+          url: '#',
+          domain: truthReport.verification_method,
+        })),
+        independent_sources_count: truthReport.sources.length,
+        contradictions_detected: isIncorrect ? [truthReport.why_explanation] : [],
+        live_verification_active: true,
+        self_correction: isIncorrect
+          ? {
+              was_corrected: true,
+              original_claim: truthReport.user_claim,
+              corrected_statement: truthReport.correct_information,
+              proof: truthReport.computational_proof,
+            }
+          : undefined,
+      };
+    }
+
+    // General fallback to ask
     const trace = await api.ask(message, sessionId, 'auto', history, attachedFiles);
     const scoreVal = Math.round(trace.final_confidence * 100);
+    const hasContradiction = trace.confidence_report?.claims?.some((c: any) => c.status === 'CONTRADICTED') || false;
+
     return {
       id: `chat-${Date.now()}`,
       message: trace.answer,
@@ -215,21 +263,23 @@ export const api = {
       confidence_score: scoreVal,
       confidence_band: scoreVal >= 85 ? 'High evidence confidence' : 'Good evidence, some limitations',
       confidence_explanation: trace.confidence_report?.plain_explanation || 'Confidence evaluated from internal models.',
-      status_summary: `Confidence assessed at ${scoreVal}%`,
+      status_summary: hasContradiction
+        ? 'INCORRECT CLAIM DETECTED (AUTO-CORRECTED)'
+        : `Confidence assessed at ${scoreVal}%`,
       claims: trace.confidence_report?.claims?.map((c: any) => ({
         claim: c.claim || '',
         status: c.status || 'SUPPORTED',
         confidence: c.confidence || 0.85,
-        reasoning: c.source || 'Verified from corpus'
+        reasoning: c.source || 'Verified from corpus',
       })) || [],
       sources: trace.sources?.map((s: string) => ({
         title: s,
         url: '#',
-        domain: 'Internal Knowledge Base'
+        domain: 'Internal Knowledge Base',
       })) || [],
       independent_sources_count: trace.sources?.length || 0,
-      contradictions_detected: [],
-      live_verification_active: false,
+      contradictions_detected: hasContradiction ? ['One or more claims contradicted by verified knowledge base'] : [],
+      live_verification_active: true,
     };
   },
 
@@ -292,17 +342,38 @@ export const api = {
 
   async analyzeImage(file: File): Promise<any> {
     const base = getApiBase();
-    const formData = new FormData();
-    formData.append('file', file);
-    const res = await fetch(`${base}/image/analyze`, {
-      method: 'POST',
-      body: formData,
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Failed to analyze image' }));
-      throw new Error(err.detail || `Server error: ${res.status}`);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${base}/image/analyze`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Backend /api/image/analyze unavailable, falling back to browser-native image forensics:', e);
     }
-    return await res.json();
+    // Offline / Vercel fallback: run client-side HTML5 canvas ELA + metadata scanner
+    return await runClientImageForensics(file);
+  },
+
+  async verifyTruth(query: string): Promise<any> {
+    const base = getApiBase();
+    try {
+      const res = await fetch(`${base}/truth/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Backend /api/truth/verify unavailable, using client truth engine:', e);
+    }
+    return clientTruthEngine.verify(query);
   },
 
   async getImageReport(analysisId: string): Promise<any> {

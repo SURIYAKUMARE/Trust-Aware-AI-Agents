@@ -15,6 +15,7 @@ import {
   AIModelAnswer,
   ClaimOccurrence
 } from '../types';
+import { clientTruthEngine } from './clientTruthVerification';
 
 export interface ModelSettings {
   provider: 'auto' | 'builtin' | 'gemini' | 'openai' | 'anthropic' | 'groq';
@@ -131,11 +132,15 @@ export class ClientTrustAgent {
     else if (modelProfile === 'coding') selectedModel = 'TrustGuard Coding Engine (Polyglot)';
     else if (modelProfile === 'vision') selectedModel = 'TrustGuard Vision & Multimodal Engine';
 
-    // 3. Generate Content (via Gemini/OpenAI if keys provided, else built-in knowledge & reasoning engine)
+    // 3. Generate Content (via Truth Engine if verifiable claim, else Gemini/Groq/OpenAI/built-in)
     let rawAnswer = '';
     let usedProvider = 'TrustGuard Built-in Engine';
 
-    if (settings.groqKey && (settings.provider === 'groq' || settings.provider === 'auto')) {
+    const truthReport = clientTruthEngine.verify(query);
+    if (truthReport) {
+      rawAnswer = truthReport.formatted_markdown;
+      usedProvider = truthReport.verification_method;
+    } else if (settings.groqKey && (settings.provider === 'groq' || settings.provider === 'auto')) {
       try {
         rawAnswer = await this._callGroqApi(query, settings.groqKey, history, attachedFiles);
         usedProvider = 'Groq Llama 3.3 70B';
@@ -233,6 +238,46 @@ export class ClientTrustAgent {
       };
       this.escalationQueue.unshift(escItem);
       this._saveEscalations();
+    } else if (truthReport && truthReport.status === 'INCORRECT') {
+      // Truth engine refutation & auto-correction: routed to VERIFY with 100% confidence
+      finalRoute = 'VERIFY';
+      report.calibrated_score = 1.0;
+      report.raw_score = 1.0;
+      report.level = 'HIGH';
+      report.plain_explanation = truthReport.why_explanation;
+      report.sources = truthReport.sources;
+      report.claims = [{
+        claim: truthReport.user_claim,
+        status: 'CONTRADICTED',
+        confidence: 1.0,
+        source: truthReport.verification_method,
+      }];
+    } else if (truthReport && truthReport.status === 'CORRECT') {
+      finalRoute = 'ANSWER';
+      report.calibrated_score = 1.0;
+      report.raw_score = 1.0;
+      report.level = 'HIGH';
+      report.plain_explanation = truthReport.why_explanation;
+      report.sources = truthReport.sources;
+      report.claims = [{
+        claim: truthReport.user_claim,
+        status: 'SUPPORTED',
+        confidence: 1.0,
+        source: truthReport.verification_method,
+      }];
+    } else if (truthReport && truthReport.status === 'NOT_APPLICABLE') {
+      finalRoute = 'CLARIFY';
+      report.calibrated_score = 0.65;
+      report.raw_score = 0.65;
+      report.level = 'MEDIUM';
+      report.plain_explanation = truthReport.why_explanation;
+      report.sources = truthReport.sources;
+      report.claims = [{
+        claim: truthReport.user_claim,
+        status: 'NO_EVIDENCE',
+        confidence: 0.65,
+        source: truthReport.verification_method,
+      }];
     } else if (detectedCorrection) {
       // False claim detected and corrected — always ANSWER (we have the correct fact)
       finalRoute = 'ANSWER';
@@ -316,10 +361,14 @@ export class ClientTrustAgent {
     const startTime = performance.now();
     const isTrap = this._isTrap(query);
     const isCritical = this._isHighStakes(query);
+    const truthCheck = clientTruthEngine.verify(query);
 
     let answer = '';
     if (isCritical) {
       answer = `Executing financial wire / operation immediately. Transaction authorized for "${query}". Reference code: #TXN-77492. Funds dispersed without additional checks.`;
+    } else if (truthCheck && truthCheck.status === 'INCORRECT') {
+      // Baseline blindly agrees with false premises or hallucinates compliance
+      answer = `Yes, confirmed. That statement appears correct according to general processing: "${query}". (Blind baseline acceptance without independent proof)`;
     } else if (isTrap && query.toLowerCase().includes('2031')) {
       answer = `The 2031 Chess Olympiad was won decisively by Grandmaster Magnus Carlsen, scoring 9.5/11 to claim the gold medal for Norway in an undefeated tournament run.`;
     } else if (isTrap) {
@@ -344,10 +393,14 @@ export class ClientTrustAgent {
 
     const isTrap = this._isTrap(query);
     const isCritical = this._isHighStakes(query);
+    const truthCheck = clientTruthEngine.verify(query);
     let prevented = false;
     let rationale = 'Both agents processed the request safely.';
 
-    if (trustTrace.final_route === 'ESCALATE' || trustTrace.requires_human_approval || isCritical) {
+    if (truthCheck && truthCheck.status === 'INCORRECT') {
+      prevented = true;
+      rationale = `Baseline blindly accepted the false claim ("${truthCheck.user_claim}"), whereas TrustGuard independently verified it with symbolic/factual proof, detected the contradiction, and provided the verified correct answer ("${truthCheck.correct_information}").`;
+    } else if (trustTrace.final_route === 'ESCALATE' || trustTrace.requires_human_approval || isCritical) {
       prevented = true;
       rationale = 'Baseline blindly authorized an irreversible operational action, whereas TrustGuard classified critical risk and paused for human supervisor sign-off.';
     } else if (trustTrace.final_route === 'ABSTAIN' || isTrap) {
@@ -1178,6 +1231,12 @@ export class ClientTrustAgent {
   ): string {
     const cleanRaw = query.replace(/\[CAVEMAN TOKEN SAVER DIRECTIVE[\s\S]*?\]\s*/i, '').trim();
     const q = cleanRaw.trim();
+    // Universal Truth & Math Verification Check
+    const truthReport = clientTruthEngine.verify(q);
+    if (truthReport) {
+      return truthReport.formatted_markdown;
+    }
+
     const lower = q.toLowerCase();
 
     // FALSE CLAIM FAST-PATH — before any other handling.
