@@ -163,6 +163,50 @@ export class ClientTrustAgent {
       rawAnswer = this._generateBuiltinAnswer(query, history, attachedFiles, modelProfile);
     }
 
+    // 3b. FALSE CLAIM FAST-PATH — check BEFORE confidence scoring.
+    // If the query is a known false statement, override rawAnswer with the
+    // correct fact immediately so the MAIN CHAT BUBBLE shows the right answer.
+    const KNOWN_FALSE_CLAIMS: [string[], string][] = [
+      [['sky', 'green'],      'The sky is **blue**, not green. This is caused by Rayleigh scattering — shorter blue wavelengths of sunlight scatter more widely across the atmosphere.'],
+      [['sky', 'red'],        'The sky is **blue** due to Rayleigh scattering. It only appears red or orange at sunrise and sunset when sunlight travels through more atmosphere.'],
+      [['sky', 'purple'],     'The sky is **blue**. Rayleigh scattering of sunlight makes it appear blue during daytime — not purple.'],
+      [['sky', 'yellow'],     'The sky is **blue** during the day. It only appears yellowish at sunrise/sunset due to the angle of sunlight through the atmosphere.'],
+      [['sky', 'orange'],     'The sky is **blue** during daytime. It appears orange at sunrise and sunset due to atmospheric scattering at low sun angles.'],
+      [['moon', 'cheese'],    'The Moon is **not made of cheese**. It is composed of rock, dust (regolith), basalt, and anorthosite — confirmed by Apollo missions and lunar samples.'],
+      [['earth', 'flat'],     'The Earth is **not flat**. It is an oblate spheroid (slightly flattened sphere), confirmed by satellite imagery, GPS accuracy, gravity measurements, and direct observation from space.'],
+      [['flat earth'],        'The Earth is **not flat**. It is an oblate spheroid — confirmed by centuries of science, satellite data, circumnavigation, and direct observation from space.'],
+      [['sun', 'cold'],       'The Sun is **extremely hot**. Its surface temperature is approximately 5,778 K (5,505°C), and its core reaches 15 million °C.'],
+      [['sun', 'orbits earth'], 'The Earth **orbits the Sun**, not the other way around. This is heliocentric solar system model, confirmed since Copernicus (1543) and verified by modern astronomy.'],
+      [['water', 'burns'],    'Pure water (**H₂O**) does not burn. It is already fully oxidized and is widely used to extinguish fires.'],
+      [['10%', 'brain'],      'Humans **use virtually all of their brain**, not just 10%. Modern neuroscience shows that almost all brain regions are active, and the "10% myth" is completely debunked.'],
+      [['vaccine', 'autism'], 'Vaccines **do not cause autism**. The original 1998 study claiming a link was fraudulent, retracted, and its author lost his medical license. Dozens of large-scale studies confirm no link.'],
+      [['vaccine', 'microchip'], 'Vaccines **do not contain microchips**. This is a debunked conspiracy theory with no scientific basis. Vaccines contain antigens, adjuvants, stabilizers, and preservatives.'],
+      [['einstein', 'fail', 'math'], 'Einstein **did not fail mathematics**. He excelled at math and physics from childhood. The myth originated from misreading Swiss school grading scales.'],
+      [['einstein', 'iphone'], 'Einstein **did not invent the iPhone**. Albert Einstein died in 1955. Apple introduced the iPhone in January 2007 — 52 years later.'],
+      [['lightning', 'never', 'twice'], 'Lightning **does strike the same place twice** — in fact, tall structures like the Empire State Building are struck roughly 20–25 times per year.'],
+      [['great wall', 'space'], 'The Great Wall of China is **not visible from space** with the naked eye. Chinese astronaut Yang Liwei confirmed he could not see it from orbit. The wall is too narrow relative to its length.'],
+      [['bleach', 'cure'],    'Drinking bleach is **extremely dangerous and potentially lethal**. It causes severe chemical burns to the mouth, throat, and stomach. It does not cure any disease.'],
+      [['humans', 'fins'],    'Humans **do not have fins**. Humans are mammals with limbs (arms and legs). Fins are characteristic of fish and some other aquatic animals.'],
+      [['dinosaurs', 'humans', 'same time'], 'Dinosaurs and modern humans **did not live at the same time**. Non-avian dinosaurs went extinct ~66 million years ago. Modern humans evolved approximately 300,000 years ago.'],
+      [['napoleon', 'short'], 'Napoleon was **not unusually short**. At ~5\'7" (170 cm), he was average height for his era. The "short Napoleon" myth stems from British propaganda and a confusion between French and English inch measurements.'],
+      [['blood', 'blue'],     'Human blood is **always red** — it contains hemoglobin which is red due to iron-oxygen binding. Deoxygenated blood is dark red, not blue. Veins appear blue through skin due to how light penetrates tissue.'],
+      [['toilet', 'hemisphere', 'flush'], 'The Coriolis effect **does not determine toilet flush direction**. The force is far too weak at that scale. Flush direction is determined by the design of the toilet bowl jets.'],
+    ];
+
+    let detectedCorrection = '';
+    const lowerQuery = query.toLowerCase();
+    for (const [keywords, correction] of KNOWN_FALSE_CLAIMS) {
+      if (keywords.every(kw => lowerQuery.includes(kw))) {
+        detectedCorrection = correction;
+        break;
+      }
+    }
+
+    // If a false claim was detected, replace the answer with the correct fact
+    if (detectedCorrection) {
+      rawAnswer = `❌ **That statement is incorrect.**\n\n✅ **Correct Answer:** ${detectedCorrection}`;
+    }
+
     // 4. Compute Confidence Report, Evidence Heatmap, and Diagnostic Signals
     const report = this._evaluateConfidence(query, rawAnswer, isCriticalRisk, attachedFiles);
     const latencyMs = Math.round(performance.now() - startTime + 95);
@@ -189,6 +233,12 @@ export class ClientTrustAgent {
       };
       this.escalationQueue.unshift(escItem);
       this._saveEscalations();
+    } else if (detectedCorrection) {
+      // False claim detected and corrected — always ANSWER (we have the correct fact)
+      finalRoute = 'ANSWER';
+      report.calibrated_score = 0.97;
+      report.raw_score = 0.97;
+      report.level = 'HIGH';
     } else if (report.calibrated_score < 0.35) {
       finalRoute = 'ABSTAIN';
     } else if (report.uncertainty_type === 'ambiguity') {
@@ -229,34 +279,8 @@ export class ClientTrustAgent {
       report.calibrated_score
     ];
 
-      // FALSE CLAIM DETECTION in regular run() — catch false assertions typed as queries
-      const knownFalseRunPatterns: [string[], string][] = [
-        [['sky', 'green'], 'The sky appears blue due to Rayleigh scattering of sunlight.'],
-        [['sky', 'red'], 'The sky is blue due to Rayleigh scattering. It appears reddish only at sunrise/sunset.'],
-        [['sky', 'purple'], 'The sky is blue due to atmospheric light scattering, not purple.'],
-        [['moon', 'cheese'], 'The Moon is composed of rock and dust (regolith, basalt, anorthosite) — not cheese.'],
-        [['earth', 'flat'], 'Earth is an oblate spheroid, confirmed by satellite imagery, GPS, and physics.'],
-        [['flat earth'], 'Earth is an oblate spheroid. The flat Earth claim is scientifically refuted.'],
-        [['water', 'burns'], 'Pure water (H₂O) does not burn — it is fully oxidized and suppresses fire.'],
-        [['10%', 'brain'], 'Humans use virtually 100% of the brain. The 10% myth is debunked by neuroscience.'],
-        [['vaccine', 'autism'], 'The vaccine-autism link is a debunked fraud. No credible peer-reviewed evidence supports it.'],
-        [['einstein', 'fail', 'math'], 'Einstein excelled at mathematics. The "failed math" story is a popular myth with no basis.'],
-        [['lightning', 'never', 'twice'], 'Lightning frequently strikes the same location multiple times — the Empire State Building is struck ~23 times per year.'],
-        [['great wall', 'space'], 'The Great Wall of China is NOT visible from space with the naked eye — confirmed by astronauts including Chinese taikonaut Yang Liwei.'],
-        [['sun', 'cold'], 'The Sun\'s surface is ~5,778 K (~5,505°C). It is extraordinarily hot.'],
-        [['bleach', 'cure'], 'Drinking bleach is lethal and does not cure any disease. This is dangerous misinformation.'],
-        [['vaccine', 'microchip'], 'Vaccines do not contain microchips. This is a debunked conspiracy theory with no scientific basis.'],
-        [['einstein', 'iphone'], 'Albert Einstein died in 1955. Apple introduced the iPhone in 2007. Einstein had no connection to its invention.'],
-      ];
-
-      const lowerQ2 = rawAnswer.toLowerCase() + ' ' + query.toLowerCase();
-      let runCorrection = '';
-      for (const [kws, correction] of knownFalseRunPatterns) {
-        if (kws.every(k => lowerQ2.includes(k))) {
-          runCorrection = correction;
-          break;
-        }
-      }
+      // Use the correction already detected in the fast-path above (if any)
+      const runCorrection = detectedCorrection;
 
       if (runCorrection) {
         report.plain_explanation = `⚠️ False claim detected. ${runCorrection}`;
@@ -280,8 +304,8 @@ export class ClientTrustAgent {
       escalation_id: escalationId,
       selected_model: selectedModel,
       sources: report.sources,
-      suggested_correction: runCorrection || undefined,
-      correct_answer: runCorrection || undefined,
+      suggested_correction: detectedCorrection || undefined,
+      correct_answer: detectedCorrection || undefined,
     };
   }
 
@@ -1119,6 +1143,39 @@ export class ClientTrustAgent {
     const cleanRaw = query.replace(/\[CAVEMAN TOKEN SAVER DIRECTIVE[\s\S]*?\]\s*/i, '').trim();
     const q = cleanRaw.trim();
     const lower = q.toLowerCase();
+
+    // FALSE CLAIM FAST-PATH — before any other handling.
+    // If the query asserts a known false fact, return the correct answer immediately.
+    const BUILTIN_FALSE_CLAIMS: [string[], string][] = [
+      [['sky', 'green'],  'The sky is **blue**, not green. Rayleigh scattering causes shorter blue wavelengths of sunlight to scatter more widely across the atmosphere.'],
+      [['sky', 'red'],    'The sky is **blue** during the day. It appears red or orange at sunrise and sunset when sunlight travels through a much thicker slice of atmosphere.'],
+      [['sky', 'purple'], 'The sky is **blue** during daytime due to Rayleigh scattering of sunlight — not purple.'],
+      [['sky', 'yellow'], 'The sky is **blue** during daytime. It looks yellow or orange near sunrise and sunset due to low-angle atmospheric scattering.'],
+      [['sky', 'orange'], 'The sky is **blue** during the day. The orange tint at sunrise and sunset occurs because light travels through more atmosphere at those angles.'],
+      [['moon', 'cheese'], 'The Moon is **not made of cheese**. It is composed of rock, dust (regolith), basalt, and anorthosite — confirmed by Apollo missions and lunar sample analysis.'],
+      [['earth', 'flat'], 'The Earth is **not flat**. It is an oblate spheroid, confirmed by satellite imagery, GPS systems, gravitational measurements, and direct astronaut observation.'],
+      [['flat earth'],    'The Earth is **not flat**. It is an oblate spheroid — proven by circumnavigation, satellite data, gravity physics, and every space agency on Earth.'],
+      [['sun', 'cold'],   'The Sun is **extremely hot**. Its surface temperature is ~5,778 K (5,505°C) and its core reaches 15 million °C through nuclear fusion.'],
+      [['sun', 'orbits earth'], 'The Earth **orbits the Sun**. The heliocentric model has been confirmed since Copernicus (1543) and is verified by modern astronomy and space missions.'],
+      [['water', 'burns'], 'Pure water (**H₂O**) cannot burn. It is already a fully oxidized molecule and is used to extinguish fires, not start them.'],
+      [['10%', 'brain'],  'Humans **use virtually all of their brain** — not just 10%. Almost all brain regions are active at some point. The 10% myth is entirely debunked by neuroscience.'],
+      [['vaccine', 'autism'], 'Vaccines **do not cause autism**. The 1998 study claiming a link was fraudulent, retracted, and its author struck off. Dozens of large studies confirm no link exists.'],
+      [['vaccine', 'microchip'], 'Vaccines **do not contain microchips**. This is a debunked conspiracy theory. Vaccines contain antigens, adjuvants, stabilizers, and preservatives — all medically documented.'],
+      [['einstein', 'fail', 'math'], 'Einstein **did not fail mathematics**. He excelled at math and physics from a young age. The myth arose from a misreading of Swiss school grading conventions.'],
+      [['einstein', 'iphone'], 'Einstein **did not invent the iPhone**. He died in 1955. Apple launched the iPhone in 2007 — 52 years after his death.'],
+      [['lightning', 'never', 'twice'], 'Lightning **does** strike the same place multiple times. The Empire State Building is struck ~20–25 times per year.'],
+      [['great wall', 'space'], 'The Great Wall of China is **not visible from space** with the naked eye. Chinese astronaut Yang Liwei confirmed he could not see it. It is too narrow despite its length.'],
+      [['bleach', 'cure'],  'Drinking bleach is **dangerous and potentially fatal**. It causes severe chemical burns and does not cure any disease.'],
+      [['blood', 'blue'],   'Human blood is **always red**. Oxygenated blood is bright red; deoxygenated blood is dark red. Veins look blue through skin because of how light penetrates tissue — not because the blood is blue.'],
+      [['napoleon', 'short'], 'Napoleon was **not unusually short**. At ~5\'7" (170 cm) he was average height for his era. The myth came from British propaganda and unit-conversion confusion between French and English inches.'],
+      [['dinosaurs', 'humans', 'same time'], 'Dinosaurs and modern humans **did not coexist**. Non-avian dinosaurs went extinct ~66 million years ago; modern humans evolved ~300,000 years ago.'],
+    ];
+
+    for (const [keywords, correction] of BUILTIN_FALSE_CLAIMS) {
+      if (keywords.every(kw => lower.includes(kw))) {
+        return `❌ **That statement is incorrect.**\n\n✅ **Correct Answer:** ${correction}`;
+      }
+    }
 
     // 0. Attached Document Question Handling (RAG Pipeline)
     if (attachedFiles && attachedFiles.length > 0) {
