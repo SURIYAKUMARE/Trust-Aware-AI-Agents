@@ -469,3 +469,22 @@ export interface ImageAnalysisReport {
   latency_ms: number;
 }
 
+export interface AIDetectionResponse {
+  analysis_status: string;
+  detection_result: string;
+  ai_probability: number;
+  ai_probability_raw: number;
+  explanation: string;
+  generator_analysis?: Record<string, number>;
+  filename: string;
+  file_size_kb: number;
+  format: string;
+  thresholds?: {
+    ai_threshold: number;
+    authentic_threshold: number;
+  };
+  disclaimer: string;
+  latency_ms: number;
+}
+
+

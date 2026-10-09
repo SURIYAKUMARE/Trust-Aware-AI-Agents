@@ -20,7 +20,7 @@ import {
   Sliders,
   ScanFace
 } from 'lucide-react';
-import { ImageAnalysisReport } from '../types';
+import { ImageAnalysisReport, AIDetectionResponse } from '../types';
 import { api } from '../api';
 
 export const ImageForensicsView: React.FC = () => {
@@ -31,6 +31,8 @@ export const ImageForensicsView: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [analysisProgress, setAnalysisProgress] = useState<string>('');
   const [report, setReport] = useState<ImageAnalysisReport | null>(null);
+  const [aiDetectionResult, setAiDetectionResult] = useState<AIDetectionResponse | null>(null);
+  const [selectedThreshold, setSelectedThreshold] = useState<number>(0.85);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'original' | 'heatmap'>('original');
   const [showMetadataDetails, setShowMetadataDetails] = useState<boolean>(false);
@@ -90,6 +92,7 @@ export const ImageForensicsView: React.FC = () => {
     setPreviewUrl(null);
     setImageDimensions(null);
     setReport(null);
+    setAiDetectionResult(null);
     setErrorMessage(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -103,7 +106,7 @@ export const ImageForensicsView: React.FC = () => {
     // Progressive status updates
     setAnalysisProgress('Validating image signature and container headers...');
     const progressTimer1 = setTimeout(() => {
-      setAnalysisProgress('Computing 2D-FFT Fourier high-frequency energy & PRNU noise residuals...');
+      setAnalysisProgress('Running AI image detection & generative synthesis evaluation...');
     }, 700);
     const progressTimer2 = setTimeout(() => {
       setAnalysisProgress('Generating Error Level Analysis (ELA @ 95% Q) compression map...');
@@ -113,12 +116,16 @@ export const ImageForensicsView: React.FC = () => {
     }, 2300);
 
     try {
-      const res = await api.analyzeImage(selectedFile);
+      const [res, aiRes] = await Promise.all([
+        api.analyzeImage(selectedFile),
+        api.detectAIImage(selectedFile, selectedThreshold),
+      ]);
       setReport(res);
+      setAiDetectionResult(aiRes);
       setViewMode('original');
     } catch (err: any) {
       console.error('Forensic analysis error:', err);
-      setErrorMessage(err.message || 'An error occurred during forensic image analysis.');
+      setErrorMessage(err.message || 'An error occurred during image analysis.');
     } finally {
       clearTimeout(progressTimer1);
       clearTimeout(progressTimer2);
@@ -130,7 +137,11 @@ export const ImageForensicsView: React.FC = () => {
 
   const handleDownloadReport = () => {
     if (!report) return;
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(report, null, 2));
+    const exportData = {
+      ...report,
+      ai_detection_analysis: aiDetectionResult || undefined,
+    };
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportData, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute('href', dataStr);
     downloadAnchor.setAttribute('download', `trustguard_forensics_${report.analysis_id}.json`);
@@ -146,6 +157,34 @@ export const ImageForensicsView: React.FC = () => {
       return 'border-rose-500/40 bg-rose-950/40 text-rose-300';
     }
     return 'border-amber-500/40 bg-amber-950/40 text-amber-300';
+  };
+
+  const getDetectionStyle = (verdict: string) => {
+    if (verdict.includes('Likely AI-generated')) {
+      return {
+        border: 'border-purple-500/50',
+        bg: 'bg-purple-950/40',
+        text: 'text-purple-300',
+        badge: 'bg-purple-900/80 text-purple-200 border-purple-500/50',
+        bar: 'from-purple-600 to-indigo-600',
+      };
+    }
+    if (verdict.includes('Likely authentic')) {
+      return {
+        border: 'border-emerald-500/50',
+        bg: 'bg-emerald-950/40',
+        text: 'text-emerald-300',
+        badge: 'bg-emerald-900/80 text-emerald-200 border-emerald-500/50',
+        bar: 'from-emerald-600 to-teal-600',
+      };
+    }
+    return {
+      border: 'border-amber-500/50',
+      bg: 'bg-amber-950/40',
+      text: 'text-amber-300',
+      badge: 'bg-amber-900/80 text-amber-200 border-amber-500/50',
+      bar: 'from-amber-600 to-yellow-600',
+    };
   };
 
   return (
@@ -291,6 +330,38 @@ export const ImageForensicsView: React.FC = () => {
                 </span>
               </div>
 
+              {/* Sensitivity Threshold Selector */}
+              {!report && (
+                <div className="bg-slate-950/60 p-3 rounded-2xl border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400 font-medium">Detection Sensitivity</span>
+                    <span className="font-mono text-purple-300 font-bold">
+                      Threshold: {Math.round(selectedThreshold * 100)}%
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 text-xs">
+                    {[
+                      { label: 'Strict (85%)', value: 0.85 },
+                      { label: 'Balanced (75%)', value: 0.75 },
+                      { label: 'Sensitive (65%)', value: 0.65 },
+                    ].map((t) => (
+                      <button
+                        key={t.value}
+                        type="button"
+                        onClick={() => setSelectedThreshold(t.value)}
+                        className={`py-1.5 rounded-xl font-medium text-[11px] transition-colors cursor-pointer border ${
+                          selectedThreshold === t.value
+                            ? 'bg-purple-900/60 border-purple-500/50 text-purple-200'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Action Buttons */}
               {!report && (
                 <button
@@ -301,12 +372,12 @@ export const ImageForensicsView: React.FC = () => {
                   {isAnalyzing ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>{analysisProgress || 'Running Forensic Analysis...'}</span>
+                      <span>{analysisProgress || 'Analyzing Image...'}</span>
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4" />
-                      <span>Run Forensic Analysis</span>
+                      <span>Analyze Image</span>
                     </>
                   )}
                 </button>
@@ -353,6 +424,110 @@ export const ImageForensicsView: React.FC = () => {
           ) : (
             /* Real Forensic Analysis Report */
             <div className="space-y-6 animate-fade-in">
+              {/* AI Image Detection & Authenticity Analysis Panel */}
+              {aiDetectionResult && (
+                <div className={`p-6 rounded-3xl border ${getDetectionStyle(aiDetectionResult.detection_result).border} ${getDetectionStyle(aiDetectionResult.detection_result).bg} shadow-xl space-y-4`}>
+                  {/* Header: Title, Authenticity Label & Analysis Status */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-2xl bg-purple-900/60 border border-purple-500/40 text-purple-300 shadow-inner">
+                        <Sparkles className="w-5 h-5 text-purple-400" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-base font-bold text-white tracking-tight">AI Image Detection</h2>
+                          <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-slate-300">
+                            Image Authenticity Analysis
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Generative model probability &amp; structural authenticity analysis
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2.5 py-1 rounded-xl font-mono font-medium border flex items-center gap-1.5 ${
+                        aiDetectionResult.analysis_status === 'Successfully analyzed'
+                          ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300'
+                          : 'bg-amber-950/70 border-amber-500/40 text-amber-300'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${aiDetectionResult.analysis_status === 'Successfully analyzed' ? 'bg-emerald-400' : 'bg-amber-400'} animate-pulse`} />
+                        {aiDetectionResult.analysis_status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Probability Metric & Detection Result */}
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
+                    <div className="md:col-span-5 space-y-2">
+                      <div className="text-xs uppercase font-semibold tracking-wider text-slate-400">
+                        AI-Generated Probability
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-4xl font-black text-white font-mono tracking-tight">
+                          {aiDetectionResult.ai_probability}%
+                        </span>
+                        <span className="text-xs text-slate-400 font-medium">Probability</span>
+                      </div>
+                      {/* Progress Bar */}
+                      <div className="w-full bg-slate-950/90 h-3 rounded-full overflow-hidden border border-slate-800 p-0.5">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-700 bg-gradient-to-r ${getDetectionStyle(aiDetectionResult.detection_result).bar}`}
+                          style={{ width: `${Math.min(100, Math.max(5, aiDetectionResult.ai_probability))}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-7 space-y-2 bg-slate-950/50 p-4 rounded-2xl border border-slate-800/80">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-400">Detection Result</span>
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-xl border ${getDetectionStyle(aiDetectionResult.detection_result).badge}`}>
+                          {aiDetectionResult.detection_result}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        {aiDetectionResult.explanation}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Generator Analysis */}
+                  {aiDetectionResult.generator_analysis && Object.keys(aiDetectionResult.generator_analysis).length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                      <span className="text-xs font-bold text-slate-300">Generator Analysis</span>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {Object.entries(aiDetectionResult.generator_analysis).map(([genName, genScore]) => (
+                          <div key={genName} className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs flex justify-between items-center">
+                            <span className="text-slate-400 capitalize">{genName.replace('_', ' ')}</span>
+                            <span className="font-mono font-bold text-purple-300">{genScore}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Analysis Details & Sensitivity Threshold */}
+                  <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-400 font-mono">
+                    <div className="flex items-center gap-3">
+                      <span>File: {aiDetectionResult.filename}</span>
+                      <span>• {aiDetectionResult.format} ({aiDetectionResult.file_size_kb} KB)</span>
+                      <span>• {aiDetectionResult.latency_ms}ms</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500">Threshold:</span>
+                      <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-300">
+                        AI &ge; {Math.round((aiDetectionResult.thresholds?.ai_threshold || selectedThreshold) * 100)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Disclaimer */}
+                  <p className="text-[10px] text-slate-500 italic pt-1">
+                    <strong>Analysis Details:</strong> {aiDetectionResult.disclaimer}
+                  </p>
+                </div>
+              )}
+
               {/* Overall Verdict Banner */}
               <div className={`p-5 rounded-3xl border ${getVerdictStyle(report.overall_verdict)} shadow-lg space-y-2`}>
                 <div className="flex flex-wrap items-center justify-between gap-2">

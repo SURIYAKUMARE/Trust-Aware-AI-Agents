@@ -30,8 +30,23 @@ class ImageEvidenceAggregator:
         # 2. Metadata & Container Audit
         metadata = image_metadata_analyzer.analyze(pil_image, file_bytes, filename)
 
-        # 3. AI-Generated Image Forensics (2D-FFT + PRNU Noise Residual)
+        # 3. AI-Generated Image Forensics
         ai_finding = ai_image_detector.analyze(pil_image, metadata)
+        from app.config import settings
+        from app.image_forensics.sightengine_service import sightengine_service
+        if settings.SIGHTENGINE_API_USER and settings.SIGHTENGINE_API_SECRET:
+            try:
+                sight_res = await sightengine_service.detect_ai_generated(file_bytes, filename)
+                if sight_res.analysis_status == "Successfully analyzed":
+                    ai_finding.score = sight_res.ai_probability_raw
+                    ai_finding.score_display = f"{sight_res.ai_probability}%"
+                    ai_finding.assessment = sight_res.detection_result
+                    ai_finding.evidence_detected.insert(0, sight_res.explanation)
+                    if sight_res.generator_analysis:
+                        gen_str = ", ".join([f"{k}: {v}%" for k, v in sight_res.generator_analysis.items()])
+                        ai_finding.evidence_detected.append(f"Generator analysis: {gen_str}")
+            except Exception as e:
+                pass
 
         # 4. Digital Manipulation & Splicing (ELA + Block Variance)
         manip_finding, heatmap_uri = image_manipulation_detector.analyze(pil_image)

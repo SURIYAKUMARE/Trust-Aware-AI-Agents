@@ -1046,8 +1046,10 @@ async def prompt_review_api(req: PromptReviewApiRequest):
 from fastapi import UploadFile, File
 from app.image_forensics import (
     image_evidence_aggregator,
+    sightengine_service,
     ImageAnalysisReport,
     ImageHealthResponse,
+    AIDetectionResponse,
 )
 
 @app.get("/api/image/health", response_model=ImageHealthResponse)
@@ -1069,6 +1071,35 @@ def image_forensics_health():
         pillow_available=hasattr(PIL, "__version__"),
         max_upload_size_mb=20,
     )
+
+
+@app.post("/api/image/detect", response_model=AIDetectionResponse)
+@app.post("/api/image/check", response_model=AIDetectionResponse)
+async def detect_ai_generated_image_endpoint(
+    file: UploadFile = File(...),
+    threshold: Optional[float] = None
+):
+    """
+    AI-Generated Image Detection Endpoint:
+    Receives an uploaded image via multipart/form-data, validates payload format and size,
+    and queries the detection service (models=genai) server-side without exposing credentials.
+    Returns normalized TrustGuard AI detection metrics.
+    """
+    try:
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="Empty file uploaded.")
+
+        return await sightengine_service.detect_ai_generated(
+            file_bytes=content,
+            filename=file.filename or "uploaded_image.jpg",
+            threshold=threshold
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error executing AI image detection: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Image detection error: {str(e)}")
 
 
 @app.post("/api/image/analyze", response_model=ImageAnalysisReport)

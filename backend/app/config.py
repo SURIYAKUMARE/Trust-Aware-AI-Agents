@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     BING_API_KEY: str = os.getenv("BING_API_KEY", "")
     SERPAPI_API_KEY: str = os.getenv("SERPAPI_API_KEY", "")
     
+    # AI Image Detection API credentials
+    SIGHTENGINE_API_USER: str = os.getenv("SIGHTENGINE_API_USER", "")
+    SIGHTENGINE_API_SECRET: str = os.getenv("SIGHTENGINE_API_SECRET", "")
+    
     # Router thresholds
     HIGH_THRESHOLD: float = 0.85
     MEDIUM_THRESHOLD: float = 0.65

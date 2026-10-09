@@ -57,3 +57,23 @@ class ImageHealthResponse(BaseModel):
     scipy_available: bool
     pillow_available: bool
     max_upload_size_mb: int = 20
+
+class AIDetectionResponse(BaseModel):
+    analysis_status: str  # "Successfully analyzed" or "Unable to analyze"
+    detection_result: str  # "Likely AI-generated", "Likely authentic", or "Inconclusive"
+    ai_probability: float  # e.g. 92.0 (converted from type.ai_generated 0-1)
+    ai_probability_raw: float  # e.g. 0.92
+    explanation: str
+    generator_analysis: Dict[str, float] = Field(default_factory=dict)
+    filename: str
+    file_size_kb: float
+    format: str
+    thresholds: Dict[str, float] = Field(
+        default_factory=lambda: {"ai_threshold": 0.85, "authentic_threshold": 0.50}
+    )
+    disclaimer: str = (
+        "Analysis indicates probabilistic likelihood based on generative model patterns. "
+        "A high probability does not constitute absolute proof of artificial generation, "
+        "nor does a low score guarantee authenticity."
+    )
+    latency_ms: float = 0.0

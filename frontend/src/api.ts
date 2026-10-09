@@ -17,6 +17,7 @@ import {
   MultiAIConsensusResult,
   AskAndVerifyRequest,
   AskAndVerifyResponse,
+  AIDetectionResponse,
 } from './types';
 import { clientAgent, getStoredModelSettings } from './services/clientAgent';
 import { runClientImageForensics } from './services/clientImageForensics';
@@ -357,6 +358,55 @@ export const api = {
     }
     // Offline / Vercel fallback: run client-side HTML5 canvas ELA + metadata scanner
     return await runClientImageForensics(file);
+  },
+
+  async detectAIImage(file: File, threshold?: number): Promise<AIDetectionResponse> {
+    const base = getApiBase();
+    const formData = new FormData();
+    formData.append('file', file);
+    if (threshold !== undefined) {
+      formData.append('threshold', threshold.toString());
+    }
+
+    try {
+      const res = await fetch(`${base}/image/detect`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Endpoint /api/image/detect unavailable, trying fallback /api/image/check:', e);
+    }
+
+    try {
+      const res2 = await fetch(`${base}/image/check`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (res2.ok) {
+        return await res2.json();
+      }
+    } catch (e) {
+      console.warn('Endpoint /api/image/check unavailable:', e);
+    }
+
+    // Normalized unavailable response (without inventing fake detection results)
+    return {
+      analysis_status: 'Unable to analyze',
+      detection_result: 'Inconclusive',
+      ai_probability: 0.0,
+      ai_probability_raw: 0.0,
+      explanation: 'AI Image Detection service is temporarily unavailable or unreachable. Please verify server status.',
+      generator_analysis: {},
+      filename: file.name,
+      file_size_kb: Math.round((file.size / 1024) * 10) / 10,
+      format: file.type.includes('png') ? 'PNG' : file.type.includes('webp') ? 'WEBP' : 'JPEG',
+      thresholds: { ai_threshold: 0.85, authentic_threshold: 0.50 },
+      disclaimer: 'Analysis indicates probabilistic likelihood based on generative model patterns. A high probability does not constitute absolute proof of artificial generation, nor does a low score guarantee authenticity.',
+      latency_ms: 0,
+    };
   },
 
   async verifyTruth(query: string): Promise<any> {
