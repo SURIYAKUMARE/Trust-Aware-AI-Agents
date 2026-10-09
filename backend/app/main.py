@@ -36,6 +36,14 @@ from app.schemas import (
     FeedbackDisputeResponse,
     CodeReviewApiRequest,
     PromptReviewApiRequest,
+    TruthVerifyApiRequest,
+)
+from app.truth_verification import (
+    TruthVerificationReport,
+    VerificationStatus,
+    universal_truth_pipeline,
+    math_verification_engine,
+    opinion_engine,
 )
 from app.agent.trust_agent import trust_agent
 from app.agent.baseline_agent import baseline_agent
@@ -669,6 +677,59 @@ async def production_chat(req: ChatRequest):
     if attached_code:
         query = f"{query}\n{attached_code}".strip()
 
+    # 0A. MATHEMATICS TRUTH VERIFICATION (SymPy arbitrary precision & arithmetic verification)
+    if math_verification_engine.is_math_query(query):
+        math_report = math_verification_engine.verify(query)
+        if math_report:
+            elapsed = (time.perf_counter() - t0) * 1000
+            claim_stat = "SUPPORTED" if math_report.status == VerificationStatus.CORRECT else "CONTRADICTED"
+            return ChatResponse(
+                id=resp_id,
+                message=math_report.formatted_markdown,
+                intent="MATHEMATICS",
+                confidence_score=math_report.evidence_confidence,
+                confidence_band=math_report.confidence_band,
+                confidence_explanation=math_report.why_explanation,
+                status_summary=f"Truth Verification: {math_report.status.value} (SymPy deterministic proof)",
+                claims=[
+                    VerifiedClaimItem(
+                        claim=math_report.user_claim,
+                        status=claim_stat,
+                        supporting_snippet=math_report.computational_proof,
+                        confidence=1.0,
+                        reasoning=math_report.why_explanation,
+                    )
+                ],
+                sources=[],
+                independent_sources_count=0,
+                contradictions_detected=[math_report.user_claim] if math_report.status == VerificationStatus.INCORRECT else [],
+                verified_at=timestamp,
+                latency_ms=round(elapsed, 1),
+                live_verification_active=False,
+            )
+
+    # 0B. OPINION / SUBJECTIVE PREFERENCE EVALUATION (NOT_APPLICABLE)
+    if opinion_engine.is_opinion(query):
+        op_report = opinion_engine.evaluate(query)
+        if op_report:
+            elapsed = (time.perf_counter() - t0) * 1000
+            return ChatResponse(
+                id=resp_id,
+                message=op_report.formatted_markdown,
+                intent="OPINION_PREFERENCE",
+                confidence_score=op_report.evidence_confidence,
+                confidence_band=op_report.confidence_band,
+                confidence_explanation=op_report.why_explanation,
+                status_summary=f"Truth Verification: {op_report.status.value} (Subjective context dependency)",
+                claims=[],
+                sources=[],
+                independent_sources_count=0,
+                contradictions_detected=[],
+                verified_at=timestamp,
+                latency_ms=round(elapsed, 1),
+                live_verification_active=False,
+            )
+
     classification = question_classifier.classify(query, history_context)
 
     # 1. DISPUTE / USER SAYS "YOUR ANSWER IS WRONG"
@@ -823,6 +884,54 @@ async def production_chat(req: ChatRequest):
         )
 
     # 4. CURRENT FACT / GENERAL KNOWLEDGE / FACT VERIFICATION
+    # Check if input is a testable factual assertion that can be verified by the truth pipeline
+    is_assertion = not query.endswith("?") and not any(
+        query.lower().startswith(w) for w in ["who ", "what ", "where ", "when ", "why ", "how ", "can ", "could ", "tell ", "explain "]
+    )
+    if is_assertion:
+        try:
+            truth_report = await universal_truth_pipeline.verify(query)
+            if truth_report.status in [VerificationStatus.INCORRECT, VerificationStatus.OUTDATED, VerificationStatus.PARTIALLY_CORRECT] or truth_report.requires_clarification:
+                elapsed = (time.perf_counter() - t0) * 1000
+                sources_out = [
+                    SourceCitation(
+                        title=s.title,
+                        url=s.url,
+                        domain=s.domain,
+                        snippet=s.snippet,
+                        authority_score=s.authority_score,
+                        published_date=s.published_date,
+                        is_primary=s.is_primary,
+                    )
+                    for s in truth_report.evidence_sources
+                ]
+                return ChatResponse(
+                    id=resp_id,
+                    message=truth_report.formatted_markdown,
+                    intent=classification.intent.value,
+                    confidence_score=truth_report.evidence_confidence,
+                    confidence_band=truth_report.confidence_band,
+                    confidence_explanation=truth_report.why_explanation,
+                    status_summary=f"Truth Verification: {truth_report.status.value}",
+                    claims=[
+                        VerifiedClaimItem(
+                            claim=truth_report.user_claim,
+                            status="CONTRADICTED" if truth_report.status == VerificationStatus.INCORRECT else "UNVERIFIABLE",
+                            supporting_snippet=truth_report.correct_information,
+                            confidence=float(truth_report.evidence_confidence) / 100.0,
+                            reasoning=truth_report.why_explanation,
+                        )
+                    ],
+                    sources=sources_out,
+                    independent_sources_count=len(truth_report.evidence_sources),
+                    contradictions_detected=[truth_report.user_claim] if truth_report.status == VerificationStatus.INCORRECT else [],
+                    verified_at=timestamp,
+                    latency_ms=round(elapsed, 1),
+                    live_verification_active=True,
+                )
+        except Exception as e:
+            logger.warning(f"Truth pipeline pre-check error: {e}")
+
     ver_result = await verification_pipeline.execute(
         query=query,
         conversation_context=history_context,
@@ -996,6 +1105,28 @@ def get_image_report(analysis_id: str):
     if not report:
         raise HTTPException(status_code=404, detail=f"Image analysis report '{analysis_id}' not found.")
     return report
+
+
+# ==============================================================
+# UNIVERSAL TRUTH VERIFICATION ENDPOINT
+# ==============================================================
+
+@app.post("/api/truth/verify", response_model=TruthVerificationReport)
+async def verify_truth_endpoint(req: TruthVerifyApiRequest):
+    """
+    Universal Truth Verification Engine:
+    Dynamically classifies domain, executes independent mathematical computation,
+    runs code analysis, or corroborates factual claims against live web sources.
+    """
+    try:
+        return await universal_truth_pipeline.verify(
+            query=req.query,
+            simulate_search_failure=req.simulate_search_failure
+        )
+    except Exception as e:
+        logger.error(f"Error executing universal truth verification: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 

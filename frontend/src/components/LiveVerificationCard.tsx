@@ -39,15 +39,46 @@ export const LiveVerificationCard: React.FC<LiveVerificationCardProps> = ({
 
   const score = data.confidence_score;
 
-  // Determine badge styling based on confidence bands
+  // Determine badge styling based on confidence bands and truth status
   const getBandStyles = (s: number) => {
+    const isIncorrect = 
+      (data.contradictions_detected && data.contradictions_detected.length > 0) ||
+      (data.status_summary && data.status_summary.toUpperCase().includes("INCORRECT")) ||
+      (data.claims && data.claims.some(c => c.status === 'CONTRADICTED'));
+
+    if (isIncorrect) {
+      return {
+        border: 'border-rose-500/50',
+        bg: 'bg-rose-950/60',
+        text: 'text-rose-400',
+        badge: 'bg-rose-900/80 text-rose-200 border-rose-500/50 animate-pulse',
+        icon: ShieldAlert,
+        label: 'Incorrect Claim Detected (Auto-Corrected)'
+      };
+    }
+
+    const isOpinion = 
+      (data.status_summary && (data.status_summary.includes("NOT_APPLICABLE") || data.status_summary.includes("NOT APPLICABLE"))) ||
+      (data.confidence_band && data.confidence_band.includes("Context-dependent"));
+
+    if (isOpinion) {
+      return {
+        border: 'border-slate-700',
+        bg: 'bg-slate-900/70',
+        text: 'text-slate-300',
+        badge: 'bg-slate-800 text-slate-300 border-slate-700',
+        icon: HelpCircle,
+        label: 'Subjective Opinion / Context Dependent'
+      };
+    }
+
     if (s >= 90) return {
       border: 'border-emerald-500/40',
       bg: 'bg-emerald-950/60',
       text: 'text-emerald-400',
       badge: 'bg-emerald-900/60 text-emerald-300 border-emerald-500/30',
       icon: ShieldCheck,
-      label: 'High evidence confidence'
+      label: 'Verified Accurate'
     };
     if (s >= 75) return {
       border: 'border-blue-500/40',
@@ -55,7 +86,7 @@ export const LiveVerificationCard: React.FC<LiveVerificationCardProps> = ({
       text: 'text-blue-400',
       badge: 'bg-blue-900/60 text-blue-300 border-blue-500/30',
       icon: ShieldCheck,
-      label: 'Good evidence, some limitations'
+      label: 'Verified with Good Evidence'
     };
     if (s >= 50) return {
       border: 'border-amber-500/40',
@@ -63,7 +94,7 @@ export const LiveVerificationCard: React.FC<LiveVerificationCardProps> = ({
       text: 'text-amber-400',
       badge: 'bg-amber-900/60 text-amber-300 border-amber-500/30',
       icon: AlertTriangle,
-      label: 'Mixed or incomplete evidence'
+      label: 'Mixed or Incomplete Evidence'
     };
     if (s >= 1) return {
       border: 'border-rose-500/40',
@@ -71,7 +102,7 @@ export const LiveVerificationCard: React.FC<LiveVerificationCardProps> = ({
       text: 'text-rose-400',
       badge: 'bg-rose-900/60 text-rose-300 border-rose-500/30',
       icon: ShieldAlert,
-      label: 'Low evidence confidence'
+      label: 'Low Evidence Confidence'
     };
     return {
       border: 'border-slate-700',

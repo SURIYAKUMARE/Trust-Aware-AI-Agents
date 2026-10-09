@@ -426,4 +426,8 @@ class CodeReviewApiRequest(BaseModel):
 class PromptReviewApiRequest(BaseModel):
     prompt: str
 
+class TruthVerifyApiRequest(BaseModel):
+    query: str
+    simulate_search_failure: bool = False
+
 
