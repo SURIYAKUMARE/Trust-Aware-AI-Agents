@@ -416,3 +416,56 @@ export interface MultiAIConsensusResult {
   latency_ms: number;
 }
 
+// Image Forensics & AI Generator Detection
+export interface ImageMetadataDetails {
+  format: string;
+  width: number;
+  height: number;
+  aspect_ratio: string;
+  file_size_bytes: number;
+  file_size_kb: number;
+  has_exif: boolean;
+  camera_make?: string;
+  camera_model?: string;
+  lens_model?: string;
+  software?: string;
+  datetime_original?: string;
+  exposure_time?: string;
+  f_number?: number;
+  iso?: number;
+  gps_coordinates?: { latitude: number; longitude: number };
+  ai_generation_markers: string[];
+  png_text_chunks: Record<string, string>;
+  c2pa_manifest_detected: boolean;
+}
+
+export interface DetectorFinding {
+  task: string;
+  model_or_tool: string;
+  assessment: string;
+  score?: number;
+  score_display?: string;
+  evidence_detected: string[];
+  limitations: string;
+  supporting_metrics: Record<string, any>;
+}
+
+export interface ImageAnalysisReport {
+  analysis_id: string;
+  filename: string;
+  timestamp: string;
+  metadata: ImageMetadataDetails;
+  ai_generation_assessment: DetectorFinding;
+  manipulation_assessment: DetectorFinding;
+  deepfake_assessment: DetectorFinding;
+  provenance_assessment: DetectorFinding;
+  reverse_search_assessment: DetectorFinding;
+  heatmap_data_uri?: string;
+  heatmap_label: string;
+  faces_detected: number;
+  overall_verdict: string;
+  key_findings: string[];
+  disclaimer: string;
+  latency_ms: number;
+}
+

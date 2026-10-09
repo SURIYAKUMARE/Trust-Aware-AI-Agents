@@ -931,4 +931,72 @@ async def prompt_review_api(req: PromptReviewApiRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ==============================================================
+# IMAGE FORENSICS & FAKE IMAGE ANALYZER ENDPOINTS
+# ==============================================================
+from fastapi import UploadFile, File
+from app.image_forensics import (
+    image_evidence_aggregator,
+    ImageAnalysisReport,
+    ImageHealthResponse,
+)
+
+@app.get("/api/image/health", response_model=ImageHealthResponse)
+def image_forensics_health():
+    """Health and capability check for local computer vision and forensics engines."""
+    import cv2
+    import scipy
+    import PIL
+    import os
+
+    cascade_path = os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml")
+    haar_available = os.path.exists(cascade_path)
+
+    return ImageHealthResponse(
+        status="ok",
+        opencv_available=hasattr(cv2, "__version__"),
+        haar_cascade_available=haar_available,
+        scipy_available=hasattr(scipy, "__version__"),
+        pillow_available=hasattr(PIL, "__version__"),
+        max_upload_size_mb=20,
+    )
+
+
+@app.post("/api/image/analyze", response_model=ImageAnalysisReport)
+async def analyze_uploaded_image(file: UploadFile = File(...)):
+    """
+    Forensically analyzes an uploaded image to investigate:
+    1. AI Generation (2D-FFT Fourier spectrum & PRNU sensor noise residual)
+    2. Digital Manipulation / Splicing (Error Level Analysis ELA @ 95% Q & block variance)
+    3. Deepfake Face Manipulation (Haar cascade face detection & boundary seam analysis)
+    4. Provenance & Origin (C2PA Content Credentials & EXIF hardware telemetry)
+    5. Reverse Image Search (Google Lens / SerpApi if configured)
+    """
+    try:
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="Empty file uploaded.")
+        
+        report = await image_evidence_aggregator.analyze_image(
+            file_bytes=content,
+            filename=file.filename or "uploaded_image.jpg"
+        )
+        return report
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error executing image forensic analysis: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Image analysis error: {str(e)}")
+
+
+@app.get("/api/image/report/{analysis_id}", response_model=ImageAnalysisReport)
+def get_image_report(analysis_id: str):
+    """Retrieve a previously generated image analysis forensic report by ID."""
+    report = image_evidence_aggregator.get_report(analysis_id)
+    if not report:
+        raise HTTPException(status_code=404, detail=f"Image analysis report '{analysis_id}' not found.")
+    return report
+
+
+
 

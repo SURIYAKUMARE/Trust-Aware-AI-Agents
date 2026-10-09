@@ -290,6 +290,37 @@ export const api = {
     return null;
   },
 
+  async analyzeImage(file: File): Promise<any> {
+    const base = getApiBase();
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${base}/image/analyze`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Failed to analyze image' }));
+      throw new Error(err.detail || `Server error: ${res.status}`);
+    }
+    return await res.json();
+  },
+
+  async getImageReport(analysisId: string): Promise<any> {
+    const base = getApiBase();
+    const res = await fetch(`${base}/image/report/${analysisId}`);
+    if (!res.ok) {
+      throw new Error(`Report not found (${res.status})`);
+    }
+    return await res.json();
+  },
+
+  async getImageHealth(): Promise<any> {
+    const base = getApiBase();
+    const res = await fetch(`${base}/image/health`);
+    if (!res.ok) throw new Error('Image health check failed');
+    return await res.json();
+  },
+
   async promptReview(promptText: string): Promise<any> {
     const base = getApiBase();
     try {

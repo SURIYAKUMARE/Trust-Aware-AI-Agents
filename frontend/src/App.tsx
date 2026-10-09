@@ -12,6 +12,7 @@ import { DemoMode } from './components/DemoMode';
 import { AdversarialPlayground } from './components/AdversarialPlayground';
 import { TokenSaverView } from './components/TokenSaverView';
 import { ExtensionCompanionView } from './components/ExtensionCompanionView';
+import { ImageForensicsView } from './components/ImageForensicsView';
 import { ModelSettingsModal } from './components/ModelSettingsModal';
 import { SavedPromptsModal } from './components/SavedPromptsModal';
 import { ConversationMemoryModal } from './components/ConversationMemoryModal';
@@ -459,6 +460,12 @@ export function App() {
               isCompareMode={isCompareMode}
               onToggleCompareMode={setIsCompareMode}
             />
+          )}
+
+          {activeTab === 'image_analyzer' && (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-7xl mx-auto w-full">
+              <ImageForensicsView />
+            </div>
           )}
 
           {activeTab === 'token_saver' && (

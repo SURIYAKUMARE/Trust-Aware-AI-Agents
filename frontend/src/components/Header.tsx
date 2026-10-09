@@ -17,11 +17,13 @@ import {
   Sun,
   Moon,
   Zap,
-  Shield
+  Shield,
+  ScanFace
 } from 'lucide-react';
 
 export type TabType = 
   | 'console' 
+  | 'image_analyzer'
   | 'token_saver'
   | 'extension'
   | 'timeline' 
@@ -60,6 +62,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const tabs: Array<{ id: TabType; label: string; icon: React.ReactNode; badge?: number }> = [
     { id: 'console', label: 'Chat Assistant', icon: <Bot className="w-4 h-4" /> },
+    { id: 'image_analyzer', label: 'Image Forensics', icon: <ScanFace className="w-4 h-4 text-purple-400" /> },
     { id: 'token_saver', label: 'Token Saver', icon: <Zap className="w-4 h-4 text-sky-400" /> },
     { id: 'extension', label: 'Extension', icon: <Shield className="w-4 h-4 text-emerald-400" /> },
     { id: 'monitoring', label: 'Monitoring', icon: <BarChart3 className="w-4 h-4" /> },
