@@ -45,6 +45,12 @@ class QuestionClassifier:
             r"(?i)\b(won\s+the\s+(20\d\d|recent|latest)\s+(world\s+cup|olympics|championship|oscar|election))\b",
             r"(?i)\b(who\s+is\s+the\s+president\s+of|who\s+is\s+the\s+prime\s+minister\s+of)\b",
             r"(?i)\b(when\s+is\s+the\s+next|is\s+.*still\s+(alive|president|open|available))\b",
+            r"(?i)\b(capital\s+(of|city|is)|currency\s+of|president\s+of|prime\s+minister\s+of|invented\s+by|discovered\s+by|founded\s+by)\b",
+            r"(?i)\b(who\s+(invented|discovered|founded|created|wrote|built))\b",
+            r"(?i)\b(when\s+(was|did|were))\b",
+            r"(?i)\b(which\s+(country|city|state|person|year|company))\b",
+            r"(?i)\b(is\s+it\s+(true|correct|false)\s+that)\b",
+            r"(?i)(,\s*(right|correct|true)\s*\??$)",
         ]
 
         # Patterns for code analysis
@@ -149,17 +155,30 @@ class QuestionClassifier:
                     rationale="Query asks for real-world factual status, officeholders, or current state.",
                 )
 
-        # If query mentions a specific entity with "is", "who", "what", "where", "when"
-        if re.search(r"(?i)\b(who\s+is|what\s+is\s+the|where\s+is|when\s+did|capital\s+of|population\s+of)\b", clean_q):
+        # If query mentions a specific entity with "is", "who", "what", "where", "when", or asks a question
+        if re.search(r"(?i)\b(who\s+is|what\s+is|where\s+is|when\s+did|when\s+was|which|capital|population|president|prime\s+minister)\b", clean_q):
             entities = self._extract_entities(clean_q)
             return ClassificationResult(
                 intent=QueryIntent.CURRENT_FACT,
                 requires_search=True,
                 requires_code_execution=False,
                 extracted_entities=entities,
-                confidence=0.90,
+                confidence=0.92,
                 rationale="Factual entity query requiring authoritative verification.",
             )
+
+        # Questions ending with question mark that are not purely conceptual
+        if clean_q.endswith("?") and not any(w in lower_q for w in ["explain", "difference between", "how does", "what are advantages"]):
+            entities = self._extract_entities(clean_q)
+            if entities:
+                return ClassificationResult(
+                    intent=QueryIntent.CURRENT_FACT,
+                    requires_search=True,
+                    requires_code_execution=False,
+                    extracted_entities=entities,
+                    confidence=0.88,
+                    rationale="Factual question with identified entities requiring evidence verification.",
+                )
 
         # Default: General Knowledge / Conceptual
         return ClassificationResult(
@@ -171,14 +190,27 @@ class QuestionClassifier:
         )
 
     def _extract_entities(self, text: str) -> List[str]:
-        # Extract capitalized phrases or country/role names
+        # 1. Extract capitalized phrases
         entities = []
-        # Find capital words sequence
         matches = re.findall(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b", text)
         for m in matches:
-            if m.lower() not in ["who", "what", "where", "when", "why", "how", "the", "is", "are"]:
+            if m.lower() not in ["who", "what", "where", "when", "why", "how", "the", "is", "are", "was", "were", "can", "tell", "me"]:
                 entities.append(m)
-        return list(set(entities))
+
+        # 2. If no capitalized phrases found (e.g. lowercase input), extract key substantive words
+        if not entities:
+            stop_words = {
+                "who", "what", "where", "when", "why", "how", "the", "is", "are", "was", "were",
+                "can", "tell", "me", "a", "an", "and", "or", "of", "in", "on", "at", "to", "for",
+                "with", "that", "this", "it", "right", "correct", "true", "false", "please", "you",
+                "does", "did", "do", "have", "has", "had", "be", "been", "being"
+            }
+            words = re.findall(r"\b[a-zA-Z0-9]{3,}\b", text.lower())
+            substantive = [w for w in words if w not in stop_words]
+            if substantive:
+                entities.extend(substantive[:3])
+
+        return list(dict.fromkeys(entities))
 
     def _extract_date(self, text: str) -> Optional[str]:
         match = re.search(r"\b(20[2-9]\d|19\d\d)\b", text)

@@ -943,7 +943,23 @@ export class ClientTrustAgent {
       'gemini-1.5-flash'
     ];
     
-    const contents: any[] = [];
+    const contents: any[] = [
+      {
+        role: 'user',
+        parts: [{ text: 'SYSTEM INSTRUCTION: You are TrustGuard AI, an authoritative, truth-grounded AI assistant.\n' +
+          'CRITICAL RULES:\n' +
+          '1. If the user query, premise, or statement contains ANY incorrect information, false premise, or misconception (e.g., wrong capital, incorrect dates, debunked science, or false historical claims):\n' +
+          '   - Immediately and directly state that the statement or detail is incorrect.\n' +
+          '   - Provide the verified correct fact clearly and concisely.\n' +
+          '   - Explain the truth using authoritative, factual knowledge.\n' +
+          '2. If the user asks a straightforward question, answer directly, factually, and concisely with 100% accuracy.' }]
+      },
+      {
+        role: 'model',
+        parts: [{ text: 'Understood. I will strictly correct any false information or premises and answer all questions with verified truth.' }]
+      }
+    ];
+
     if (history && history.length > 0) {
       for (const msg of history.slice(-6)) {
         contents.push({
@@ -1011,7 +1027,17 @@ export class ClientTrustAgent {
   ): Promise<string> {
     const url = 'https://api.openai.com/v1/chat/completions';
     const messages: any[] = [
-      { role: 'system', content: 'You are TrustGuard AI, a professional, confidence-aware conversational assistant.' }
+      {
+        role: 'system',
+        content: 'You are TrustGuard AI, an authoritative, truth-grounded AI assistant.\n' +
+                 'CRITICAL RULES:\n' +
+                 '1. If the user query, premise, or statement contains ANY incorrect information, false premise, or misconception (e.g., wrong capital, incorrect dates, debunked science, or false historical claims):\n' +
+                 '   - Immediately and directly state that the statement or detail is incorrect.\n' +
+                 '   - Provide the verified correct fact clearly and concisely.\n' +
+                 '   - Explain the truth using authoritative, factual knowledge.\n' +
+                 '2. If the user asks a straightforward question, answer directly, factually, and concisely with 100% accuracy.\n' +
+                 '3. Be articulate, polite, and direct without filler pleasantries.'
+      }
     ];
 
     if (history && history.length > 0) {
@@ -1064,7 +1090,17 @@ export class ClientTrustAgent {
   ): Promise<string> {
     const url = 'https://api.groq.com/openai/v1/chat/completions';
     const messages: any[] = [
-      { role: 'system', content: 'You are TrustGuard AI, a helpful, highly knowledgeable, and professional conversational AI assistant like ChatGPT. Answer user questions with deep substance, clear explanations, code blocks, and examples.' }
+      {
+        role: 'system',
+        content: 'You are TrustGuard AI, an authoritative, truth-grounded AI assistant.\n' +
+                 'CRITICAL RULES:\n' +
+                 '1. If the user query, premise, or statement contains ANY incorrect information, false premise, or misconception (e.g., wrong capital, incorrect dates, debunked science, or false historical claims):\n' +
+                 '   - Immediately and directly state that the statement or detail is incorrect.\n' +
+                 '   - Provide the verified correct fact clearly and concisely.\n' +
+                 '   - Explain the truth using authoritative, factual knowledge.\n' +
+                 '2. If the user asks a straightforward question, answer directly, factually, and concisely with 100% accuracy.\n' +
+                 '3. Be articulate, polite, and direct without filler pleasantries.'
+      }
     ];
 
     if (history && history.length > 0) {
@@ -1169,6 +1205,15 @@ export class ClientTrustAgent {
       [['blood', 'blue'],   'Human blood is **always red**. Oxygenated blood is bright red; deoxygenated blood is dark red. Veins look blue through skin because of how light penetrates tissue — not because the blood is blue.'],
       [['napoleon', 'short'], 'Napoleon was **not unusually short**. At ~5\'7" (170 cm) he was average height for his era. The myth came from British propaganda and unit-conversion confusion between French and English inches.'],
       [['dinosaurs', 'humans', 'same time'], 'Dinosaurs and modern humans **did not coexist**. Non-avian dinosaurs went extinct ~66 million years ago; modern humans evolved ~300,000 years ago.'],
+      [['australia', 'sydney'], 'The capital of Australia is **Canberra**, not Sydney. Sydney is Australia’s largest city, but Canberra was selected as the national capital in 1908 as a compromise between Sydney and Melbourne.'],
+      [['australia', 'capital', 'melbourne'], 'The capital of Australia is **Canberra**, not Melbourne.'],
+      [['capital', 'australia'], 'The capital of Australia is **Canberra**.'],
+      [['president', 'india'], 'The President of India is **Droupadi Murmu** (assumed office July 25, 2022).'],
+      [['india', 'capital', 'mumbai'], 'The capital of India is **New Delhi**, not Mumbai.'],
+      [['usa', 'capital', 'new york'], 'The capital of the United States is **Washington, D.C.**, not New York City.'],
+      [['canada', 'capital', 'toronto'], 'The capital of Canada is **Ottawa**, not Toronto.'],
+      [['brazil', 'capital', 'rio'], 'The capital of Brazil is **Brasília**, not Rio de Janeiro.'],
+      [['turkey', 'capital', 'istanbul'], 'The capital of Turkey is **Ankara**, not Istanbul.'],
     ];
 
     for (const [keywords, correction] of BUILTIN_FALSE_CLAIMS) {

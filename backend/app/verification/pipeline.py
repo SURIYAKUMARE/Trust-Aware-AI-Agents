@@ -58,8 +58,14 @@ class MultiSourceVerificationPipeline:
         # ==============================================================
         # Draft a candidate answer via LLM (treated as UNVERIFIED until evidence evaluated)
         draft_system_prompt = (
-            "You are TrustGuard AI. Draft a candidate answer to the user's question.\n"
-            "Be articulate, concise, and direct. Do not add filler greetings or pretend to search."
+            "You are TrustGuard AI, an authoritative, truth-grounded AI assistant.\n"
+            "CRITICAL FACTUAL ACCURACY & ERROR CORRECTION RULES:\n"
+            "1. If the user query, premise, or statement contains ANY incorrect information, false premise, or misconception (e.g., wrong capital, incorrect dates, debunked science, or false historical claims):\n"
+            "   - Immediately and directly state that the statement or detail is incorrect.\n"
+            "   - Provide the verified correct fact clearly and concisely.\n"
+            "   - Explain the truth using authoritative, factual knowledge.\n"
+            "2. If the user asks a straightforward question, answer directly, factually, and concisely with 100% accuracy.\n"
+            "3. Do not add filler greetings, chatty pleasantries, or pretend to search."
         )
         if conversation_context:
             draft_prompt = f"Context:\n{conversation_context}\n\nQuestion:\n{query}"
@@ -77,16 +83,25 @@ class MultiSourceVerificationPipeline:
 
         if classification.requires_search:
             # Formulate targeted search query
-            search_query = query
+            clean_search = re.sub(r"(?i)\b(is it true that|is it correct that|can you tell me|tell me)\b", "", query).strip()
+            clean_search = re.sub(r"(?i)(,\s*(right|correct|true)\s*\??$|\?$)", "", clean_search).strip()
+
+            search_query = clean_search or query
             if classification.extracted_entities:
-                search_query = " ".join(classification.extracted_entities)
-                if classification.target_date:
+                entity_str = " ".join(classification.extracted_entities)
+                # If query contains key relational words, include them
+                extra_terms = []
+                lower_q = query.lower()
+                for term in ["capital", "population", "president", "prime minister", "currency", "inventor", "founder"]:
+                    if term in lower_q and term not in entity_str.lower():
+                        extra_terms.append(term)
+                if extra_terms:
+                    search_query = f"{' '.join(extra_terms)} of {entity_str}"
+                else:
+                    search_query = entity_str
+
+                if classification.target_date and classification.target_date not in search_query:
                     search_query += f" {classification.target_date}"
-                # If question about officeholders, keep key terms
-                if "president" in query.lower():
-                    search_query += " President"
-                elif "prime minister" in query.lower():
-                    search_query += " Prime Minister"
 
             search_resp = await search_engine.search(search_query, max_results=5)
             search_results = search_resp.results

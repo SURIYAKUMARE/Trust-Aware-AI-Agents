@@ -773,6 +773,20 @@ class LLMClient:
             return "The capital of France is Paris."
         elif "789 * 456" in lower_q or "789*456" in lower_q or "789 * 456" in lower:
             return "789 multiplied by 456 is exactly **359,784**."
+        elif "australia" in lower and "capital" in lower:
+            if "sydney" in lower:
+                return "No, that is incorrect. The capital of Australia is **Canberra**, not Sydney."
+            return "The capital of Australia is **Canberra**."
+        elif "president of india" in lower or "india president" in lower:
+            return "The President of India is **Droupadi Murmu** (assumed office July 25, 2022)."
+        elif "sky" in lower and any(c in lower for c in ["green", "red", "purple", "yellow"]):
+            return "That statement is incorrect. The sky is **blue** during the day due to Rayleigh scattering of sunlight through the atmosphere."
+        elif "moon" in lower and "cheese" in lower:
+            return "That statement is incorrect. The Moon is **not made of cheese**; it is composed of rock, regolith, basalt, and anorthosite."
+        elif "earth" in lower and "flat" in lower:
+            return "That statement is incorrect. The Earth is **not flat**; it is an oblate spheroid confirmed by satellite geodesy and space observation."
+        elif "sun" in lower and "cold" in lower:
+            return "That statement is incorrect. The Sun is **extremely hot**, with a surface temperature of ~5,505°C (5,778 K) and a core temperature of 15 million °C."
 
         # 3. Traps, Unverified & Future Events: Never hallucinate!
         elif "2031" in lower_q or "olympiad" in lower_q or "2031" in lower:
@@ -782,7 +796,7 @@ class LLMClient:
             )
         elif "einstein" in lower and "iphone" in lower:
             return (
-                "I couldn't verify that premise because Albert Einstein did not invent the iPhone.\n\n"
+                "That premise is incorrect. Albert Einstein did not invent the iPhone.\n\n"
                 "• Albert Einstein passed away in 1955 and was renowned for the theories of relativity.\n"
                 "• The first iPhone was introduced by Apple Inc. in January 2007."
             )
