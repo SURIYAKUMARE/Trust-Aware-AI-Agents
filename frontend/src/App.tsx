@@ -371,6 +371,26 @@ export function App() {
     await handleSendMessage(lastUserMsg.text, lastUserMsg.attachedFiles);
   };
 
+  const handleEditMessage = async (messageId: string, newText: string) => {
+    if (!newText.trim()) return;
+    const msgs = activeSession.messages;
+    const targetIndex = msgs.findIndex(m => m.id === messageId);
+    if (targetIndex === -1) return;
+
+    // Truncate conversation from this message onwards, replacing it with the new user message
+    const preserved = msgs.slice(0, targetIndex);
+    setSessions(prev => prev.map(s => s.id === activeSessionId ? {
+      ...s,
+      messages: preserved,
+    } : s));
+
+    await handleSendMessage(newText, msgs[targetIndex].attachedFiles);
+  };
+
+  const handleStopGeneration = () => {
+    setIsLoading(false);
+  };
+
   const handleCompare = async (query: string): Promise<CompareResult> => {
     setIsLoading(true);
     setErrorMessage(null);
@@ -451,6 +471,9 @@ export function App() {
               session={activeSession}
               onSendMessage={handleSendMessage}
               onRegenerateResponse={handleRegenerateResponse}
+              onStopGeneration={handleStopGeneration}
+              onEditMessage={handleEditMessage}
+              onNavigateTab={(tab) => setActiveTab(tab as TabType)}
               isLoading={isLoading}
               modelProfile={modelProfile}
               isMultiAIMode={isMultiAIMode}

@@ -8,11 +8,12 @@ import {
   MicOff, 
   X, 
   FileText, 
-  Image, 
+  Image as ImageIcon, 
   CheckCircle2, 
   AlertCircle,
   Sparkles,
-  Zap
+  Zap,
+  ScanFace
 } from 'lucide-react';
 
 interface ChatInputProps {
@@ -22,15 +23,17 @@ interface ChatInputProps {
   placeholder?: string;
   isCavemanMode?: boolean;
   onToggleCavemanMode?: (enabled: boolean) => void;
+  onNavigateToImageForensics?: () => void;
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
   onSend,
   onStop,
   isLoading,
-  placeholder = 'Ask TrustGuard AI anything...',
+  placeholder = 'Ask TrustGuard AI anything (coding, math, science, research, advice)...',
   isCavemanMode = false,
   onToggleCavemanMode,
+  onNavigateToImageForensics,
 }) => {
   const [text, setText] = useState('');
   const [files, setFiles] = useState<UploadedFile[]>([]);
@@ -38,6 +41,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
 
   // Auto-resize textarea as user types
@@ -45,7 +49,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       const scrollHeight = textareaRef.current.scrollHeight;
-      textareaRef.current.style.height = `${Math.min(scrollHeight, 180)}px`;
+      textareaRef.current.style.height = `${Math.min(scrollHeight, 200)}px`;
     }
   }, [text]);
 
@@ -186,26 +190,26 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className={`relative w-full max-w-4xl mx-auto rounded-2xl transition-all ${
+      className={`relative w-full max-w-4xl mx-auto rounded-3xl transition-all shadow-2xl backdrop-blur-xl ${
         isCavemanMode
-          ? 'bg-slate-900/90 border border-amber-500/40 shadow-xl shadow-amber-500/5 focus-within:border-amber-500/70'
+          ? 'bg-slate-900/95 border border-amber-500/40 shadow-amber-500/5 focus-within:border-amber-500/80 focus-within:ring-2 focus-within:ring-amber-500/10'
           : isDragging
-          ? 'ring-2 ring-blue-500 bg-blue-950/20'
-          : 'bg-slate-900/90 border border-slate-800 focus-within:border-blue-500/60 shadow-xl'
+          ? 'ring-2 ring-blue-500 bg-blue-950/30 border-blue-500'
+          : 'bg-slate-900/90 border border-slate-800/90 focus-within:border-blue-500/70 focus-within:ring-2 focus-within:ring-blue-500/20'
       }`}
     >
       {/* Caveman Token Saver Active Banner */}
       {isCavemanMode && (
-        <div className="flex items-center justify-between px-3 py-1.5 bg-gradient-to-r from-amber-950/60 via-slate-900/60 to-amber-950/60 border-b border-amber-500/30 text-[11px] font-mono text-amber-300 rounded-t-2xl">
+        <div className="flex items-center justify-between px-4 py-1.5 bg-gradient-to-r from-amber-950/60 via-slate-900/60 to-amber-950/60 border-b border-amber-500/30 text-[11px] font-mono text-amber-300 rounded-t-3xl">
           <div className="flex items-center gap-1.5">
             <Zap className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
             <span className="font-bold">Caveman Token Saver Active:</span>
-            <span className="text-slate-300 hidden sm:inline">Prunes fluff, converts to dense signals (~80% token savings)</span>
+            <span className="text-slate-300 hidden sm:inline">Ultra-dense prompt format reduces tokens by ~80%</span>
           </div>
           <button
             type="button"
             onClick={() => onToggleCavemanMode && onToggleCavemanMode(false)}
-            className="text-[10px] text-amber-400/80 hover:text-white underline cursor-pointer"
+            className="text-[10px] text-amber-400 hover:text-white underline cursor-pointer"
           >
             Disable
           </button>
@@ -218,14 +222,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           {files.map((file) => (
             <div
               key={file.id}
-              className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 font-mono shadow-sm"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 font-mono shadow-sm"
             >
               {file.type.startsWith('image/') ? (
-                <Image className="w-3.5 h-3.5 text-blue-400" />
+                <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
               ) : (
                 <FileText className="w-3.5 h-3.5 text-emerald-400" />
               )}
-              <span className="truncate max-w-[140px] text-[11px] font-medium">{file.name}</span>
+              <span className="truncate max-w-[150px] text-[11px] font-medium">{file.name}</span>
               <span className="text-[10px] text-slate-500">({Math.round(file.size / 1024)}KB)</span>
               {file.status === 'processed' ? (
                 <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
@@ -244,8 +248,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         </div>
       )}
 
-      {/* Main Textarea */}
-      <div className="flex items-end gap-2 p-3">
+      {/* Main Textarea Area */}
+      <div className="flex items-end gap-2 p-3.5 sm:p-4">
         <textarea
           ref={textareaRef}
           value={text}
@@ -253,10 +257,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           rows={1}
-          className="flex-1 max-h-48 bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none resize-none leading-relaxed py-1 px-1 scrollbar-thin"
+          className="flex-1 max-h-52 bg-transparent text-sm sm:text-base text-slate-100 placeholder-slate-500 focus:outline-none resize-none leading-relaxed py-1 px-1 scrollbar-thin"
         />
 
-        {/* Input Tools & Send Action */}
+        {/* Input Tools & Send Action Bar */}
         <div className="flex items-center gap-1 shrink-0 pb-0.5">
           {/* Caveman Mode Toggle Button */}
           <button
@@ -266,16 +270,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
               isCavemanMode
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm shadow-amber-500/10'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/80'
             }`}
           >
             <Zap className={`w-3.5 h-3.5 ${isCavemanMode ? 'text-amber-400 fill-amber-400' : 'text-slate-400'}`} />
             <span className="hidden sm:inline">Caveman</span>
             {isCavemanMode ? (
-              <span className="text-[10px] text-amber-400 font-sans">-80%</span>
-            ) : (
-              <span className="text-[10px] text-slate-500 font-sans hidden md:inline">Save Tokens</span>
-            )}
+              <span className="text-[10px] text-amber-400 font-sans font-bold">-80%</span>
+            ) : null}
           </button>
 
           {/* Clear text button */}
@@ -290,6 +292,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Dedicated Image Forensics Button */}
+          {onNavigateToImageForensics && (
+            <button
+              type="button"
+              onClick={onNavigateToImageForensics}
+              title="Open Fake Image Forensics Studio"
+              className="p-2 rounded-xl text-purple-400 hover:text-purple-300 hover:bg-purple-950/40 transition-colors cursor-pointer hidden sm:block"
+            >
+              <ScanFace className="w-4 h-4" />
             </button>
           )}
 
@@ -331,7 +345,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               type="button"
               onClick={onStop}
               title="Stop Generation"
-              className="p-2 rounded-xl bg-slate-800 hover:bg-rose-600 text-slate-200 hover:text-white transition-all cursor-pointer"
+              className="p-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white transition-all cursor-pointer shadow-md shadow-rose-600/30 animate-pulse"
             >
               <Square className="w-4 h-4 fill-current" />
             </button>
@@ -341,7 +355,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               onClick={handleSubmit}
               disabled={!text.trim() && files.length === 0}
               title="Send Message (Enter)"
-              className="p-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:hover:bg-blue-600 text-white transition-all shadow-md shadow-blue-500/20 cursor-pointer"
+              className="p-2.5 rounded-2xl bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:hover:bg-blue-600 text-white transition-all shadow-lg shadow-blue-600/25 cursor-pointer disabled:cursor-not-allowed"
             >
               <Send className="w-4 h-4" />
             </button>
@@ -350,15 +364,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       </div>
 
       {/* Footer Info / Token awareness */}
-      <div className="px-3 pb-2 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+      <div className="px-4 pb-2.5 flex items-center justify-between text-[11px] text-slate-500 font-mono">
         <div className="flex items-center gap-2">
-          <span>Shift + Enter for new line</span>
-          {files.length > 0 && <span>• {files.length} document(s) attached</span>}
+          <span className="hidden sm:inline">Use Shift + Enter for new lines</span>
+          {files.length > 0 && <span>• {files.length} document(s) in context</span>}
         </div>
         {charCount > 0 && (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <span>{charCount} chars</span>
-            <span className="mx-1">•</span>
+            <span className="text-slate-600">•</span>
             {isCavemanMode ? (
               <span className="text-amber-400 font-bold">
                 ~{approxTokens} → ~{Math.max(1, Math.round(approxTokens * 0.22))} tokens (-78%)
