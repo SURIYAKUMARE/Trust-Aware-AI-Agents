@@ -95,14 +95,24 @@ export const ConversationalChatView: React.FC<ConversationalChatViewProps> = ({
   // Curated, categorized prompt suggestions
   const suggestedCategories = [
     {
-      category: 'Fact Verification',
+      category: 'Fact & Math Verification',
       tagColor: 'text-blue-400 bg-blue-950/80 border-blue-500/30',
       icon: <Search className="w-4 h-4 text-blue-400" />,
       items: [
         {
+          title: 'Math Error Refutation',
+          desc: 'Audit arithmetic claim: "2+2=6" with 100% computational proof',
+          prompt: '2+2=6',
+        },
+        {
           title: 'Verify False Premise',
           desc: 'Check statement: "The President of India is Narendra Modi"',
           prompt: 'The President of India is Narendra Modi.',
+        },
+        {
+          title: 'Geography Truth Check',
+          desc: 'Audit capital claim: "The capital of Australia is Sydney"',
+          prompt: 'The capital of Australia is Sydney.',
         },
         {
           title: 'Unheld Future Trap',
