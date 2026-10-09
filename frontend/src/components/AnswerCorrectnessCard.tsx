@@ -25,6 +25,7 @@ interface AnswerCorrectnessCardProps {
   onOpenTrustReport?: (trace: DecisionTrace) => void;
   onToggleHeatmap?: () => void;
   showHeatmap?: boolean;
+  suggestedCorrection?: string;
 }
 
 export const AnswerCorrectnessCard: React.FC<AnswerCorrectnessCardProps> = ({
@@ -34,6 +35,7 @@ export const AnswerCorrectnessCard: React.FC<AnswerCorrectnessCardProps> = ({
   onOpenTrustReport,
   onToggleHeatmap,
   showHeatmap = false,
+  suggestedCorrection,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showClaimsList, setShowClaimsList] = useState(false);
@@ -46,6 +48,10 @@ export const AnswerCorrectnessCard: React.FC<AnswerCorrectnessCardProps> = ({
     scorePct = Math.round(consensusResult.occurrence_rate * 100);
   }
 
+  // Determine whether this answer is wrong/fake so we can show the correction
+  const correction = suggestedCorrection || trace?.suggested_correction || trace?.correct_answer;
+  const isFakeOrWrong = !!correction || trace?.final_route === 'ABSTAIN';
+
   // Determine status style
   const getStatusConfig = () => {
     if (trace?.requires_human_approval) {
@@ -57,6 +63,19 @@ export const AnswerCorrectnessCard: React.FC<AnswerCorrectnessCardProps> = ({
         textColor: 'text-rose-400',
         borderColor: 'border-rose-500/30',
         icon: <ShieldAlert className="w-4 h-4 text-rose-400" />,
+        whyLabel: 'Why was this flagged?',
+      };
+    }
+    if (correction) {
+      return {
+        label: 'FAKE / INCORRECT STATEMENT',
+        sublabel: 'This statement is factually wrong — see correct answer below',
+        badgeBg: 'bg-rose-950/90 text-rose-300 border-rose-500/50',
+        barGradient: 'from-rose-600 to-red-500',
+        textColor: 'text-rose-400',
+        borderColor: 'border-rose-500/40',
+        icon: <ShieldAlert className="w-4 h-4 text-rose-400" />,
+        whyLabel: 'Why is this wrong?',
       };
     }
     if (trace?.final_route === 'ABSTAIN') {
@@ -68,6 +87,7 @@ export const AnswerCorrectnessCard: React.FC<AnswerCorrectnessCardProps> = ({
         textColor: 'text-rose-400',
         borderColor: 'border-rose-500/30',
         icon: <ShieldAlert className="w-4 h-4 text-rose-400" />,
+        whyLabel: 'Why did TrustGuard abstain?',
       };
     }
     if (trace?.final_route === 'CLARIFY') {
@@ -79,6 +99,7 @@ export const AnswerCorrectnessCard: React.FC<AnswerCorrectnessCardProps> = ({
         textColor: 'text-amber-400',
         borderColor: 'border-amber-500/30',
         icon: <AlertTriangle className="w-4 h-4 text-amber-400" />,
+        whyLabel: 'Why is clarification needed?',
       };
     }
     if (scorePct >= 85) {
@@ -90,6 +111,7 @@ export const AnswerCorrectnessCard: React.FC<AnswerCorrectnessCardProps> = ({
         textColor: 'text-emerald-400',
         borderColor: 'border-emerald-500/30',
         icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" />,
+        whyLabel: 'Why is this correct?',
       };
     }
     if (scorePct >= 70) {
@@ -101,6 +123,7 @@ export const AnswerCorrectnessCard: React.FC<AnswerCorrectnessCardProps> = ({
         textColor: 'text-blue-400',
         borderColor: 'border-blue-500/30',
         icon: <ShieldCheck className="w-4 h-4 text-blue-400" />,
+        whyLabel: 'Why is this correct?',
       };
     }
     return {
@@ -111,6 +134,7 @@ export const AnswerCorrectnessCard: React.FC<AnswerCorrectnessCardProps> = ({
       textColor: 'text-amber-400',
       borderColor: 'border-amber-500/30',
       icon: <AlertTriangle className="w-4 h-4 text-amber-400" />,
+      whyLabel: 'Why is this correct?',
     };
   };
 
@@ -205,7 +229,7 @@ export const AnswerCorrectnessCard: React.FC<AnswerCorrectnessCardProps> = ({
               onClick={() => setIsExpanded(!isExpanded)}
               className="px-3 py-1 rounded-xl bg-slate-800/80 hover:bg-slate-750 border border-slate-750 text-xs font-semibold text-slate-200 hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
             >
-              <span>{isExpanded ? 'Hide Details' : 'Why is this correct?'}</span>
+              <span>{isExpanded ? 'Hide Details' : status.whyLabel}</span>
               {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
           </div>
@@ -225,10 +249,45 @@ export const AnswerCorrectnessCard: React.FC<AnswerCorrectnessCardProps> = ({
         <div className="mt-2.5 flex items-start gap-2 text-xs text-slate-300 leading-relaxed bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/70">
           <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <span className="font-semibold text-white mr-1.5">Why is this correct?</span>
+            <span className="font-semibold text-white mr-1.5">{status.whyLabel}</span>
             <span className="text-slate-300">{whyExplanation}</span>
           </div>
         </div>
+
+        {/* ✅ CORRECT SOLUTION BOX — shown whenever answer is fake/wrong/abstained */}
+        {isFakeOrWrong && correction && (
+          <div className="mt-2.5 rounded-xl border border-emerald-500/50 bg-emerald-950/30 overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-2 bg-emerald-900/40 border-b border-emerald-500/30">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="text-xs font-bold text-emerald-300 uppercase tracking-wide">
+                ✅ Correct Answer / Solution
+              </span>
+            </div>
+            <div className="px-3.5 py-3 text-sm text-emerald-100 leading-relaxed font-medium">
+              {correction}
+            </div>
+          </div>
+        )}
+
+        {/* Abstain without a known correction — show generic guidance */}
+        {trace?.final_route === 'ABSTAIN' && !correction && (
+          <div className="mt-2.5 rounded-xl border border-amber-500/40 bg-amber-950/20 overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-2 bg-amber-900/30 border-b border-amber-500/30">
+              <Info className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="text-xs font-bold text-amber-300 uppercase tracking-wide">
+                How to get the correct answer
+              </span>
+            </div>
+            <div className="px-3.5 py-3 text-xs text-amber-100 leading-relaxed space-y-1">
+              <p>TrustGuard abstained because no verified evidence was found for this claim. To get a correct answer:</p>
+              <ul className="list-disc pl-4 space-y-0.5 text-amber-200">
+                <li>Check a primary source (official website, peer-reviewed paper, encyclopedia)</li>
+                <li>Try rephrasing the question with more specific context</li>
+                <li>Use the <strong>Multi-AI Consensus</strong> mode to cross-verify across 5 models</li>
+              </ul>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* --- EXPANDED SECTION: 4 VERIFICATION PILLARS & PROOF POINTS --- */}

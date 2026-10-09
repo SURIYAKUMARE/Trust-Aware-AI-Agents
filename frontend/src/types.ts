@@ -97,6 +97,9 @@ export interface DecisionTrace {
   escalation_id?: string;
   selected_model?: string;
   sources?: string[];
+  // Correction fields — populated when answer is wrong/fake/abstained
+  suggested_correction?: string;
+  correct_answer?: string;
 }
 
 export interface CompareResult {

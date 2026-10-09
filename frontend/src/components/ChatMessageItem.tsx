@@ -262,6 +262,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
             onOpenTrustReport={onOpenTrustReport}
             onToggleHeatmap={() => setShowHeatmap(!showHeatmap)}
             showHeatmap={showHeatmap}
+            suggestedCorrection={trace?.suggested_correction || trace?.correct_answer}
           />
         )}
 

@@ -229,6 +229,39 @@ export class ClientTrustAgent {
       report.calibrated_score
     ];
 
+      // FALSE CLAIM DETECTION in regular run() — catch false assertions typed as queries
+      const knownFalseRunPatterns: [string[], string][] = [
+        [['sky', 'green'], 'The sky appears blue due to Rayleigh scattering of sunlight.'],
+        [['sky', 'red'], 'The sky is blue due to Rayleigh scattering. It appears reddish only at sunrise/sunset.'],
+        [['sky', 'purple'], 'The sky is blue due to atmospheric light scattering, not purple.'],
+        [['moon', 'cheese'], 'The Moon is composed of rock and dust (regolith, basalt, anorthosite) — not cheese.'],
+        [['earth', 'flat'], 'Earth is an oblate spheroid, confirmed by satellite imagery, GPS, and physics.'],
+        [['flat earth'], 'Earth is an oblate spheroid. The flat Earth claim is scientifically refuted.'],
+        [['water', 'burns'], 'Pure water (H₂O) does not burn — it is fully oxidized and suppresses fire.'],
+        [['10%', 'brain'], 'Humans use virtually 100% of the brain. The 10% myth is debunked by neuroscience.'],
+        [['vaccine', 'autism'], 'The vaccine-autism link is a debunked fraud. No credible peer-reviewed evidence supports it.'],
+        [['einstein', 'fail', 'math'], 'Einstein excelled at mathematics. The "failed math" story is a popular myth with no basis.'],
+        [['lightning', 'never', 'twice'], 'Lightning frequently strikes the same location multiple times — the Empire State Building is struck ~23 times per year.'],
+        [['great wall', 'space'], 'The Great Wall of China is NOT visible from space with the naked eye — confirmed by astronauts including Chinese taikonaut Yang Liwei.'],
+        [['sun', 'cold'], 'The Sun\'s surface is ~5,778 K (~5,505°C). It is extraordinarily hot.'],
+        [['bleach', 'cure'], 'Drinking bleach is lethal and does not cure any disease. This is dangerous misinformation.'],
+        [['vaccine', 'microchip'], 'Vaccines do not contain microchips. This is a debunked conspiracy theory with no scientific basis.'],
+        [['einstein', 'iphone'], 'Albert Einstein died in 1955. Apple introduced the iPhone in 2007. Einstein had no connection to its invention.'],
+      ];
+
+      const lowerQ2 = rawAnswer.toLowerCase() + ' ' + query.toLowerCase();
+      let runCorrection = '';
+      for (const [kws, correction] of knownFalseRunPatterns) {
+        if (kws.every(k => lowerQ2.includes(k))) {
+          runCorrection = correction;
+          break;
+        }
+      }
+
+      if (runCorrection) {
+        report.plain_explanation = `⚠️ False claim detected. ${runCorrection}`;
+      }
+
     return {
       trace_id: traceId,
       query,
@@ -247,6 +280,8 @@ export class ClientTrustAgent {
       escalation_id: escalationId,
       selected_model: selectedModel,
       sources: report.sources,
+      suggested_correction: runCorrection || undefined,
+      correct_answer: runCorrection || undefined,
     };
   }
 
