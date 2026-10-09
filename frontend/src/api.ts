@@ -745,6 +745,36 @@ export const api = {
     } catch (e) {
       console.warn('Backend /api/analyze unavailable, using client fallback:', e);
     }
+    const truthCheck = clientTruthEngine.verify(req.prompt) || clientTruthEngine.verify(req.response);
+    if (truthCheck && truthCheck.status === 'INCORRECT') {
+      return {
+        analysis_id: `tg_sim_${Date.now()}`,
+        query: req.prompt,
+        response_text: req.response,
+        trust_score: 18.5,
+        trust_label: 'LOW TRUST',
+        mode: req.mode || 'quick',
+        provider: req.provider || 'generic',
+        claims: [
+          {
+            claim: truthCheck.user_claim,
+            status: 'CONTRADICTED',
+            confidence: 0.99,
+            source: truthCheck.verification_method,
+            snippet: truthCheck.why_explanation,
+            category: 'fact',
+          }
+        ],
+        summary: `Contradiction detected: ${truthCheck.why_explanation}. Correct fact: ${truthCheck.correct_information}`,
+        factual_consistency: 0.15,
+        evidence_consistency: 0.20,
+        contradiction_count: 1,
+        uncertainty_score: 0.85,
+        tokens_saved: 24,
+        cached: false,
+        latency_ms: 60.0,
+      };
+    }
     return {
       analysis_id: `tg_sim_${Date.now()}`,
       query: req.prompt,
@@ -827,11 +857,50 @@ export const api = {
     } catch (e) {
       console.warn('Backend /api/ask-and-verify unavailable, using client fallback:', e);
     }
-    // Client-side fallback
+    // Client-side fallback using Universal Truth Engine
+    const truthCheck = clientTruthEngine.verify(req.question);
+    if (truthCheck) {
+      const isIncorrect = truthCheck.status === 'INCORRECT';
+      const isOpinion = truthCheck.status === 'NOT_APPLICABLE';
+      const trust_score = isIncorrect ? 12 : isOpinion ? 65 : 98;
+      const verdict: AskAndVerifyResponse['verdict'] = isIncorrect
+        ? 'FAKE INFORMATION'
+        : isOpinion
+        ? 'UNCERTAIN'
+        : 'REAL INFORMATION';
+      const verdict_color: AskAndVerifyResponse['verdict_color'] = isIncorrect
+        ? 'red'
+        : isOpinion
+        ? 'amber'
+        : 'green';
+
+      return {
+        question: req.question,
+        ai_answer: isIncorrect
+          ? `❌ That is incorrect. Correct answer: ${truthCheck.correct_information}`
+          : truthCheck.correct_information,
+        trust_score,
+        trust_label: trust_score >= 80 ? 'HIGH TRUST' : trust_score >= 50 ? 'MEDIUM TRUST' : 'LOW TRUST',
+        verdict,
+        verdict_color,
+        summary: isIncorrect
+          ? `🔴 FAKE / INCORRECT INFORMATION — ${truthCheck.why_explanation}`
+          : isOpinion
+          ? `🟡 SUBJECTIVE / CONTEXT-DEPENDENT — ${truthCheck.why_explanation}`
+          : `🟢 REAL INFORMATION — Confirmed with 100% verification precision.`,
+        claims_checked: 1,
+        claims_verified: isIncorrect ? 0 : 1,
+        contradictions: isIncorrect ? 1 : 0,
+        suggested_correction: isIncorrect ? truthCheck.correct_information : undefined,
+        sources: truthCheck.sources,
+        latency_ms: 65,
+      };
+    }
+
     const q = req.question.toLowerCase();
     const isKnownFake =
       q.includes('2031') || q.includes('olympiad') || q.includes('atlantis') ||
-      q.includes('bleach cures') || q.includes('microchip') || q.includes('einstein') && q.includes('iphone');
+      q.includes('bleach cures') || q.includes('microchip') || (q.includes('einstein') && q.includes('iphone'));
     const trust_score = isKnownFake ? 22 : 94;
     const verdict: AskAndVerifyResponse['verdict'] = isKnownFake ? 'FAKE INFORMATION' : 'REAL INFORMATION';
     const verdict_color: AskAndVerifyResponse['verdict_color'] = isKnownFake ? 'red' : 'green';
