@@ -343,55 +343,64 @@ class LLMClient:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        # Choose optimal model on Groq
-        model = self.model
-        if not model or model.startswith("gemini") or model.startswith("claude"):
-            model = "qwen/qwen3.8-27b"
-
-        body: Dict[str, Any] = {
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
-        if json_mode:
-            body["response_format"] = {"type": "json_object"}
+        # Choose optimal candidate models on Groq
+        groq_candidates = [
+            "llama-3.3-70b-versatile",
+            "qwen/qwen3.8-27b",
+            "openai/gpt-oss-120b",
+        ]
+        if self.model and self.model in groq_candidates:
+            groq_candidates.remove(self.model)
+            groq_candidates.insert(0, self.model)
 
         async with httpx.AsyncClient(timeout=timeout_sec) as client:
             last_err = None
-            for attempt in range(retries + 1):
-                try:
-                    resp = await client.post(url, headers=headers, json=body)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        choices = data.get("choices", [])
-                        if not choices:
-                            raise ValueError("No choices returned from Groq")
-                        text_val = choices[0].get("message", {}).get("content", "")
-                        usage = data.get("usage", {})
-                        p_toks = usage.get("prompt_tokens", len(prompt) // 4)
-                        c_toks = usage.get("completion_tokens", len(text_val) // 4)
-                        cost = (p_toks * 0.05 + c_toks * 0.08) / 1_000_000
+            for model_cand in groq_candidates:
+                body: Dict[str, Any] = {
+                    "model": model_cand,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                }
+                if json_mode:
+                    body["response_format"] = {"type": "json_object"}
 
-                        parsed = parse_json_safely(text_val) if json_mode else None
-                        latency = (time.perf_counter() - start_time) * 1000
+                for attempt in range(retries + 1):
+                    try:
+                        resp = await client.post(url, headers=headers, json=body)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            choices = data.get("choices", [])
+                            if not choices:
+                                raise ValueError("No choices returned from Groq")
+                            text_val = choices[0].get("message", {}).get("content", "")
+                            usage = data.get("usage", {})
+                            p_toks = usage.get("prompt_tokens", len(prompt) // 4)
+                            c_toks = usage.get("completion_tokens", len(text_val) // 4)
+                            cost = (p_toks * 0.05 + c_toks * 0.08) / 1_000_000
 
-                        return LLMResponse(
-                            content=text_val,
-                            parsed_json=parsed,
-                            latency_ms=latency,
-                            tokens_in=p_toks,
-                            tokens_out=c_toks,
-                            cost_usd=cost,
-                            provider="groq",
-                        )
-                    else:
-                        last_err = f"HTTP {resp.status_code}: {resp.text}"
-                except Exception as e:
-                    last_err = str(e)
-                await asyncio.sleep(0.4 * (2 ** attempt))
+                            parsed = parse_json_safely(text_val) if json_mode else None
+                            latency = (time.perf_counter() - start_time) * 1000
 
-            raise RuntimeError(f"Groq request failed after {retries} retries: {last_err}")
+                            return LLMResponse(
+                                content=text_val,
+                                parsed_json=parsed,
+                                latency_ms=latency,
+                                tokens_in=p_toks,
+                                tokens_out=c_toks,
+                                cost_usd=cost,
+                                provider="groq",
+                            )
+                        elif resp.status_code == 429:
+                            last_err = f"HTTP 429 rate limit on {model_cand}"
+                            break  # Try next model immediately
+                        else:
+                            last_err = f"HTTP {resp.status_code}: {resp.text}"
+                    except Exception as e:
+                        last_err = str(e)
+                    await asyncio.sleep(0.3 * (2 ** attempt))
+
+            raise RuntimeError(f"Groq request failed after retries across candidate models: {last_err}")
 
     async def _call_openai_with_retry(
         self,

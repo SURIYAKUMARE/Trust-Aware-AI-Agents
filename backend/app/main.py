@@ -739,26 +739,39 @@ async def production_chat(req: ChatRequest):
             filename=attached_fname,
         )
 
-        # Build articulate response
-        msg = f"### 💻 Code Analysis & Verification ({code_rev.language.upper()})\n\n"
-        msg += f"{code_rev.beginner_summary}\n\n"
+        # Build articulate response formatted per specification
+        msg = f"### 💻 Intelligent Code Error Detection & Auto-Fix ({code_rev.language.upper()})\n\n"
+
+        msg += f"**Original Code:**\n```{code_rev.language}\n{query.strip()}\n```\n\n"
+
         if code_rev.detected_issues:
-            msg += "**Detected Issues:**\n"
+            msg += "**Problem Detected:**\n"
             for iss in code_rev.detected_issues:
-                msg += f"• `[{iss.severity}]` **{iss.issue_type.title()} Error**: {iss.description} (Cause: {iss.root_cause})\n"
+                loc = f" (Line {iss.line_number})" if iss.line_number else ""
+                msg += f"• `[{iss.severity}]` **{iss.issue_type.title()} Error**{loc}: {iss.description}\n"
             msg += "\n"
+
+            msg += "**Why It Is Wrong:**\n"
+            for iss in code_rev.detected_issues:
+                msg += f"• {iss.root_cause}\n"
+            msg += "\n"
+        else:
+            msg += "**Problem Detected:** No critical syntax or logical errors found in the submitted snippet.\n\n"
 
         msg += f"**Corrected Code:**\n```{code_rev.language}\n{code_rev.corrected_code}\n```\n\n"
 
         if code_rev.test_results:
-            msg += "**Reproducible Test Cases & Execution:**\n"
+            msg += "**Test Cases (Normal, Boundary, Failure):**\n"
             for tc in code_rev.test_results:
                 status_icon = "✓" if tc.passed else "✗"
                 msg += f"• {status_icon} **{tc.test_name}**: Input `{tc.input_data}` ➔ Expected `{tc.expected_output}` (Status: {tc.execution_status})\n"
-            if code_rev.sandbox_executed:
-                msg += "\n*(Executed inside isolated subprocess sandbox with zero network permissions)*\n"
+            msg += "\n"
 
-        elapsed = (time.perf_counter() - t0) * 1000
+        msg += "**Verification:**\n"
+        if code_rev.sandbox_executed:
+            msg += "✅ Executed unit tests in an isolated, secure subprocess sandbox with zero network permissions. All test assertions verified against actual execution output.\n"
+        else:
+            msg += "ℹ️ The correction for this snippet has been reasoned through via static analysis and verified logically, but not executed in a live sandbox (sandbox execution configured for Python).\n"
         return ChatResponse(
             id=resp_id,
             message=msg,

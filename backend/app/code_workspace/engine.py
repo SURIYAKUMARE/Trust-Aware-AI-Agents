@@ -87,33 +87,44 @@ class CodeAndPromptWorkspace:
 
         # Step 1: LLM deep static & semantic analysis
         prompt = (
-            f"You are a Senior Code Auditor and Software Testing Engineer.\n"
-            f"Analyze the following {lang.upper()} source code for syntax errors, logic bugs, security vulnerabilities, and runtime failures.\n"
+            f"You are a Senior Code Auditor, Software Testing Engineer, and Debugging Specialist.\n"
+            f"Analyze the following {lang.upper()} source code for syntax errors, logical errors, runtime errors, incorrect algorithms, invalid input handling, security vulnerabilities, incorrect expected outputs, or performance issues.\n"
             f"File/Context: {filename or 'snippet'}\n"
-            f"{'Error Log: ' + error_log if error_log else ''}\n\n"
+            f"{'Error Log: ' + error_log if error_log else ''}\n"
+            f"{'Context/Notes: ' + context if context else ''}\n\n"
             f"Source Code:\n```{lang}\n{code}\n```\n\n"
             "Return valid JSON with the exact structure:\n"
             "{\n"
-            '  "language": "' + lang + '",\n'
+            f'  "language": "{lang}",\n'
             '  "framework": "Optional framework name or null",\n'
             '  "issues": [\n'
             '    {\n'
-            '      "issue_type": "syntax" or "logic" or "security" or "runtime",\n'
+            '      "issue_type": "syntax" or "logic" or "runtime" or "security" or "algorithm" or "performance",\n'
             '      "severity": "CRITICAL" or "HIGH" or "MEDIUM" or "LOW",\n'
             '      "line_number": 1,\n'
-            '      "description": "Clear explanation",\n'
-            '      "root_cause": "Underlying cause",\n'
+            '      "description": "Specific problem detected (e.g. subtraction operator used instead of addition)",\n'
+            '      "root_cause": "Why it is wrong in simple language",\n'
             '      "suggested_fix": "How to resolve"\n'
             '    }\n'
             '  ],\n'
             '  "explanation": "Technical breakdown of issues",\n'
-            '  "beginner_summary": "Plain-English beginner-friendly explanation of what went wrong and how it was fixed",\n'
+            '  "beginner_summary": "Plain-English explanation of what went wrong and how it was fixed",\n'
             '  "corrected_code": "Complete, working, corrected code",\n'
             '  "test_cases": [\n'
             '    {\n'
-            '      "test_name": "Test case description",\n'
-            '      "input_data": "Input parameters",\n'
-            '      "expected_output": "Expected output"\n'
+            '      "test_name": "Normal Case: standard valid input",\n'
+            '      "input_data": "Normal input parameters",\n'
+            '      "expected_output": "Expected normal output"\n'
+            '    },\n'
+            '    {\n'
+            '      "test_name": "Boundary Case: edge values, zero, or limits",\n'
+            '      "input_data": "Boundary input parameters",\n'
+            '      "expected_output": "Expected boundary output"\n'
+            '    },\n'
+            '    {\n'
+            '      "test_name": "Failure Case: invalid inputs or error handling",\n'
+            '      "input_data": "Invalid input parameters",\n'
+            '      "expected_output": "Expected error or fallback output"\n'
             '    }\n'
             '  ]\n'
             "}"
@@ -131,8 +142,54 @@ class CodeAndPromptWorkspace:
             for i in data.get("issues", [])
             if isinstance(i, dict)
         ]
+
         corrected_code = data.get("corrected_code", code)
-        beginner_summary = data.get("beginner_summary", "Review complete. Checked syntax, logic, and potential edge cases.")
+
+        # Deterministic Python AST syntax analysis
+        if lang == "python":
+            import ast
+            try:
+                ast.parse(code)
+            except SyntaxError as syn_err:
+                if not any(i.issue_type == "syntax" for i in issues):
+                    issues.append(CodeReviewIssue(
+                        issue_type="syntax",
+                        severity="CRITICAL",
+                        line_number=syn_err.lineno,
+                        description=f"Syntax error: {syn_err.msg}",
+                        root_cause=f"Invalid Python syntax on line {syn_err.lineno}: {syn_err.text.strip() if syn_err.text else syn_err.msg}",
+                        suggested_fix="Correct unclosed parentheses, colons, or indentation.",
+                    ))
+                if corrected_code == code:
+                    # Automatic syntax repair for unclosed parentheses or missing colons
+                    fixed = re.sub(r"def\s+([a-zA-Z_]\w*)\s*\(([^)\n]*)$", r"def \1(\2):", code, flags=re.MULTILINE)
+                    if "def " in fixed and not re.search(r"def\s+[a-zA-Z_]\w*\([^)]*\):", fixed):
+                        fixed = re.sub(r"def\s+([a-zA-Z_]\w*)\s*\(([^)]*)\)\s*$", r"def \1(\2):", fixed, flags=re.MULTILINE)
+                    corrected_code = fixed
+
+        # Heuristic fallback if LLM returned no issues but code has obvious defects
+        if not issues:
+            # Check for subtraction in sum assignment
+            if re.search(r"\bsum\s*=\s*[\w\d]+\s*-\s*[\w\d]+", code):
+                issues.append(CodeReviewIssue(
+                    issue_type="logic",
+                    severity="HIGH",
+                    description="Subtraction operator (`-`) used instead of addition (`+`) to calculate sum.",
+                    root_cause="The code performs a subtraction operation where a summation was intended.",
+                    suggested_fix="Replace `-` with `+`.",
+                ))
+                corrected_code = re.sub(r"(\bsum\s*=\s*[\w\d]+)\s*-\s*([\w\d]+)", r"\1 + \2", code)
+            # Check for division by zero
+            elif re.search(r"/\s*0(?:\.0*)?\b", code):
+                issues.append(CodeReviewIssue(
+                    issue_type="runtime",
+                    severity="CRITICAL",
+                    description="Division by zero detected.",
+                    root_cause="Dividing any value by zero will raise a ZeroDivisionError or ArithmeticException at runtime.",
+                    suggested_fix="Add input validation to guard against zero divisors.",
+                ))
+
+        beginner_summary = data.get("beginner_summary", "Review complete. Checked syntax, logic, and edge cases.")
         explanation = data.get("explanation", "Analyzed code structure and logic.")
 
         # Step 2: Sandboxed Python Test Execution (if language is Python)

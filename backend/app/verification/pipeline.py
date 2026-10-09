@@ -87,11 +87,23 @@ class MultiSourceVerificationPipeline:
             clean_search = re.sub(r"(?i)(,\s*(right|correct|true)\s*\??$|\?$)", "", clean_search).strip()
 
             search_query = clean_search or query
-            if classification.extracted_entities:
+            lower_q = query.lower()
+
+            # Check for direct relational targets e.g. "president of india", "capital of australia"
+            rel_match = None
+            for term in ["president of", "prime minister of", "capital of", "currency of", "population of", "ceo of", "founder of"]:
+                if term in lower_q:
+                    m = re.search(rf"\b({term}\s+[a-zA-Z]+)", lower_q)
+                    if m:
+                        rel_match = m.group(1).title()
+                        break
+
+            if rel_match:
+                search_query = rel_match
+            elif classification.extracted_entities:
                 entity_str = " ".join(classification.extracted_entities)
                 # If query contains key relational words, include them
                 extra_terms = []
-                lower_q = query.lower()
                 for term in ["capital", "population", "president", "prime minister", "currency", "inventor", "founder"]:
                     if term in lower_q and term not in entity_str.lower():
                         extra_terms.append(term)

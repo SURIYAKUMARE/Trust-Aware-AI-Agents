@@ -133,14 +133,14 @@ export const LiveVerificationCard: React.FC<LiveVerificationCardProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Dispute / "This answer is wrong" button */}
+          {/* Dispute / "This answer is wrong — recheck it." button */}
           <button
             onClick={() => setShowDisputeModal(!showDisputeModal)}
             className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-900/80 hover:bg-rose-950/80 text-slate-300 hover:text-rose-300 border border-slate-700/60 hover:border-rose-500/40 transition-colors flex items-center gap-1 cursor-pointer font-medium"
-            title="Report this answer as incorrect or outdated"
+            title="Report this answer as incorrect or outdated and trigger verification recheck"
           >
             <AlertTriangle className="w-3 h-3 text-amber-400" />
-            <span>This answer is wrong</span>
+            <span>This answer is wrong — recheck it.</span>
           </button>
 
           {/* Toggle Expand Details */}
