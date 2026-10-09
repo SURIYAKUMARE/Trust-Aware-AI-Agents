@@ -350,3 +350,80 @@ class MultiAIConsensusResponse(BaseModel):
     synthesis_rationale: str
     latency_ms: float
 
+
+# --- 15. PRODUCTION REAL-TIME CHAT & FACT VERIFICATION SCHEMAS ---
+
+class SourceCitation(BaseModel):
+    title: str
+    url: str
+    domain: str
+    published_date: Optional[str] = None
+    authority_score: float = 0.70
+    is_primary: bool = False
+    snippet: Optional[str] = None
+
+class VerifiedClaimItem(BaseModel):
+    claim: str
+    status: Literal["SUPPORTED", "PARTIALLY_SUPPORTED", "CONTRADICTED", "UNVERIFIABLE", "OUTDATED", "NOT_APPLICABLE"]
+    supporting_snippet: Optional[str] = None
+    source_url: Optional[str] = None
+    source_domain: Optional[str] = None
+    confidence: float = 0.85
+    reasoning: str
+
+class ChatRequest(BaseModel):
+    message: str
+    session_id: Optional[str] = None
+    conversation_history: Optional[List[Dict[str, str]]] = Field(default_factory=list)
+    attached_files: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    mode: Optional[str] = "auto"  # 'auto', 'search', 'verify', 'code'
+
+class ChatResponse(BaseModel):
+    id: str
+    message: str
+    intent: str
+    confidence_score: int  # 0 to 100
+    confidence_band: str   # 'High evidence confidence' | 'Good evidence, some limitations' | 'Mixed or incomplete evidence' | 'Low evidence confidence' | 'No usable verification evidence'
+    confidence_explanation: str
+    status_summary: str
+    claims: List[VerifiedClaimItem] = Field(default_factory=list)
+    sources: List[SourceCitation] = Field(default_factory=list)
+    independent_sources_count: int = 0
+    contradictions_detected: List[str] = Field(default_factory=list)
+    code_review: Optional[Dict[str, Any]] = None
+    prompt_review: Optional[Dict[str, Any]] = None
+    self_correction: Optional[Dict[str, Any]] = None
+    verified_at: str
+    latency_ms: float = 0.0
+    live_verification_active: bool = True
+
+class FeedbackDisputeRequest(BaseModel):
+    session_id: Optional[str] = None
+    message_id: Optional[str] = None
+    dispute_message: str  # e.g. "Your answer is wrong. Droupadi Murmu took office in 2022"
+    previous_question: str
+    previous_answer: str
+    previous_confidence: Optional[int] = 85
+
+class FeedbackDisputeResponse(BaseModel):
+    verdict: str
+    detected_issue: str
+    previous_answer: str
+    previous_confidence: int
+    corrected_answer: str
+    updated_confidence: int
+    updated_band: str
+    reason_for_change: str
+    evidence_links: List[Dict[str, str]] = Field(default_factory=list)
+    timestamp: str
+
+class CodeReviewApiRequest(BaseModel):
+    code: str
+    filename: Optional[str] = None
+    error_log: Optional[str] = None
+    context: Optional[str] = None
+
+class PromptReviewApiRequest(BaseModel):
+    prompt: str
+
+

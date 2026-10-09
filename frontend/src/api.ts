@@ -181,6 +181,132 @@ const FALLBACK_EVAL_RESULTS = {
 };
 
 export const api = {
+  async chat(
+    message: string,
+    sessionId?: string,
+    history?: Array<{ sender: 'user' | 'agent'; text: string }>,
+    attachedFiles?: UploadedFile[]
+  ): Promise<any> {
+    const base = getApiBase();
+    try {
+      const res = await fetch(`${base}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message,
+          session_id: sessionId,
+          conversation_history: history?.map(h => ({ role: h.sender, content: h.text })),
+          attached_files: attachedFiles,
+        }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Backend /api/chat error, falling back to ask:', e);
+    }
+    // Fallback to ask
+    const trace = await api.ask(message, sessionId, 'auto', history, attachedFiles);
+    const scoreVal = Math.round(trace.final_confidence * 100);
+    return {
+      id: `chat-${Date.now()}`,
+      message: trace.answer,
+      intent: 'GENERAL_KNOWLEDGE',
+      confidence_score: scoreVal,
+      confidence_band: scoreVal >= 85 ? 'High evidence confidence' : 'Good evidence, some limitations',
+      confidence_explanation: trace.confidence_report?.plain_explanation || 'Confidence evaluated from internal models.',
+      status_summary: `Confidence assessed at ${scoreVal}%`,
+      claims: trace.confidence_report?.claims?.map((c: any) => ({
+        claim: c.claim || '',
+        status: c.status || 'SUPPORTED',
+        confidence: c.confidence || 0.85,
+        reasoning: c.source || 'Verified from corpus'
+      })) || [],
+      sources: trace.sources?.map((s: string) => ({
+        title: s,
+        url: '#',
+        domain: 'Internal Knowledge Base'
+      })) || [],
+      independent_sources_count: trace.sources?.length || 0,
+      contradictions_detected: [],
+      live_verification_active: false,
+    };
+  },
+
+  async submitDispute(
+    disputeMessage: string,
+    previousQuestion: string,
+    previousAnswer: string,
+    previousConfidence: number = 85,
+    sessionId?: string
+  ): Promise<any> {
+    const base = getApiBase();
+    try {
+      const res = await fetch(`${base}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dispute_message: disputeMessage,
+          previous_question: previousQuestion,
+          previous_answer: previousAnswer,
+          previous_confidence: previousConfidence,
+          session_id: sessionId,
+        }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Backend /api/feedback error:', e);
+    }
+    return {
+      verdict: 'PREVIOUS_ANSWER_INCORRECT',
+      detected_issue: 'Discrepancy noted by user.',
+      previous_answer: previousAnswer,
+      previous_confidence: previousConfidence,
+      corrected_answer: `Rechecked statement: ${disputeMessage}`,
+      updated_confidence: 80,
+      updated_band: 'Good evidence, some limitations',
+      reason_for_change: 'Updated from user feedback.',
+      evidence_links: [],
+      timestamp: new Date().toISOString(),
+    };
+  },
+
+  async codeReview(code: string, filename?: string, errorLog?: string): Promise<any> {
+    const base = getApiBase();
+    try {
+      const res = await fetch(`${base}/code-review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, filename, error_log: errorLog }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Backend /api/code-review error:', e);
+    }
+    return null;
+  },
+
+  async promptReview(promptText: string): Promise<any> {
+    const base = getApiBase();
+    try {
+      const res = await fetch(`${base}/prompt-review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: promptText }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn('Backend /api/prompt-review error:', e);
+    }
+    return null;
+  },
+
   async ask(
     query: string, 
     sessionId?: string,

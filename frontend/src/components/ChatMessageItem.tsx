@@ -30,6 +30,7 @@ import {
 import { api } from '../api';
 import { ConsensusResultCard } from './ConsensusResultCard';
 import { AnswerCorrectnessCard } from './AnswerCorrectnessCard';
+import { LiveVerificationCard } from './LiveVerificationCard';
 
 interface ChatMessageItemProps {
   message: ChatMessage;
@@ -49,6 +50,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   const [copied, setCopied] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [currentText, setCurrentText] = useState(message.text);
   const [showCompareBox, setShowCompareBox] = useState(!!message.compare_result);
   const [localCompareResult, setLocalCompareResult] = useState<CompareResult | null>(message.compare_result || null);
   const [isComparing, setIsComparing] = useState(false);
@@ -150,7 +152,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     return { mainContent, followUps };
   };
 
-  const { mainContent, followUps } = isUser ? { mainContent: message.text, followUps: [] } : extractFollowUps(message.text);
+  const { mainContent, followUps } = isUser ? { mainContent: currentText, followUps: [] } : extractFollowUps(currentText);
 
   return (
     <div className={`py-4 px-3 sm:px-6 flex gap-3.5 transition-colors ${
@@ -253,8 +255,18 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
           )}
         </div>
         
+        {/* Live Multi-Source Fact Verification & Evidence Confidence Card */}
+        {!isUser && !message.isStreaming && message.verification_data && (
+          <LiveVerificationCard
+            data={message.verification_data}
+            questionText={message.trace?.query || "Previous query"}
+            answerText={currentText}
+            onUpdateAnswer={(newAns) => setCurrentText(newAns)}
+          />
+        )}
+
         {/* Correctness Score (%) & "Why is this correct?" Verification Box */}
-        {!isUser && !message.isStreaming && (trace || message.consensus_result) && (
+        {!isUser && !message.isStreaming && (trace || message.consensus_result) && !message.verification_data && (
           <AnswerCorrectnessCard
             trace={trace}
             consensusResult={message.consensus_result}

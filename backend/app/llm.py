@@ -90,12 +90,14 @@ class LLMResponse:
 
 
 class LLMClient:
-    """Provider-agnostic LLM client with Gemini, Anthropic, and deterministic Mock support."""
+    """Provider-agnostic LLM client with Groq, Gemini, Anthropic, OpenAI, and deterministic Mock support."""
     
     def __init__(self):
         self.provider = settings.LLM_PROVIDER
         self.gemini_key = settings.GEMINI_API_KEY
         self.anthropic_key = settings.ANTHROPIC_API_KEY
+        self.groq_key = settings.GROQ_API_KEY
+        self.openai_key = settings.OPENAI_API_KEY
         self.model = settings.MODEL_NAME
 
     async def generate(
@@ -110,7 +112,24 @@ class LLMClient:
     ) -> LLMResponse:
         start_time = time.perf_counter()
 
-        if self.provider == "gemini" and self.gemini_key:
+        # 1. Try Groq (high-speed live inference) if configured as default/auto or explicit provider
+        if (self.provider in ["groq", "auto"] and self.groq_key) or (self.provider == "groq" and self.groq_key):
+            try:
+                return await self._call_groq_with_retry(
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    json_mode=json_mode,
+                    timeout_sec=timeout_sec,
+                    retries=retries,
+                    start_time=start_time,
+                )
+            except Exception as e:
+                logger.warning(f"Groq generation failed ({e}); checking secondary providers.")
+
+        # 2. Try Gemini if configured
+        if (self.provider in ["gemini", "auto"] and self.gemini_key):
             try:
                 return await self._call_gemini_with_retry(
                     prompt=prompt,
@@ -123,13 +142,40 @@ class LLMClient:
                     start_time=start_time,
                 )
             except Exception as e:
-                logger.warning(f"Gemini call failed ({e}); falling back to deterministic mock.")
-                res = self._generate_mock(prompt, system_prompt, json_mode)
-                res.fallback_used = True
-                res.latency_ms = (time.perf_counter() - start_time) * 1000
-                return res
+                logger.warning(f"Gemini call failed ({e}); checking secondary providers.")
+                if self.groq_key:
+                    try:
+                        return await self._call_groq_with_retry(
+                            prompt=prompt,
+                            system_prompt=system_prompt,
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            json_mode=json_mode,
+                            timeout_sec=timeout_sec,
+                            retries=retries,
+                            start_time=start_time,
+                        )
+                    except Exception as ge:
+                        logger.warning(f"Groq fallback also failed ({ge}).")
 
-        elif self.provider == "anthropic" and self.anthropic_key:
+        # 3. Try OpenAI if configured
+        if (self.provider in ["openai", "auto"] and self.openai_key):
+            try:
+                return await self._call_openai_with_retry(
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    json_mode=json_mode,
+                    timeout_sec=timeout_sec,
+                    retries=retries,
+                    start_time=start_time,
+                )
+            except Exception as e:
+                logger.warning(f"OpenAI call failed ({e}); checking secondary providers.")
+
+        # 4. Try Anthropic if configured
+        if (self.provider in ["anthropic", "auto"] and self.anthropic_key):
             try:
                 return await self._call_anthropic_with_retry(
                     prompt=prompt,
@@ -142,17 +188,12 @@ class LLMClient:
                     start_time=start_time,
                 )
             except Exception as e:
-                logger.warning(f"Anthropic call failed ({e}); falling back to deterministic mock.")
-                res = self._generate_mock(prompt, system_prompt, json_mode)
-                res.fallback_used = True
-                res.latency_ms = (time.perf_counter() - start_time) * 1000
-                return res
+                logger.warning(f"Anthropic call failed ({e}); falling back.")
 
-        else:
-            # Deterministic mock mode
-            res = self._generate_mock(prompt, system_prompt, json_mode)
-            res.latency_ms = (time.perf_counter() - start_time) * 1000
-            return res
+        # 5. Deterministic intelligent mock mode (for offline tests and scenarios)
+        res = self._generate_mock(prompt, system_prompt, json_mode)
+        res.latency_ms = (time.perf_counter() - start_time) * 1000
+        return res
 
     async def _call_gemini_with_retry(
         self,
@@ -279,6 +320,142 @@ class LLMClient:
                 await asyncio.sleep(0.5 * (2 ** attempt))
 
             raise RuntimeError(f"Anthropic request failed after {retries} retries: {last_err}")
+
+    async def _call_groq_with_retry(
+        self,
+        prompt: str,
+        system_prompt: Optional[str],
+        temperature: float,
+        max_tokens: int,
+        json_mode: bool,
+        timeout_sec: float,
+        retries: int,
+        start_time: float,
+    ) -> LLMResponse:
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.groq_key}",
+            "Content-Type": "application/json",
+        }
+        
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        # Choose optimal model on Groq
+        model = self.model
+        if not model or model.startswith("gemini") or model.startswith("claude"):
+            model = "qwen/qwen3.8-27b"
+
+        body: Dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if json_mode:
+            body["response_format"] = {"type": "json_object"}
+
+        async with httpx.AsyncClient(timeout=timeout_sec) as client:
+            last_err = None
+            for attempt in range(retries + 1):
+                try:
+                    resp = await client.post(url, headers=headers, json=body)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        choices = data.get("choices", [])
+                        if not choices:
+                            raise ValueError("No choices returned from Groq")
+                        text_val = choices[0].get("message", {}).get("content", "")
+                        usage = data.get("usage", {})
+                        p_toks = usage.get("prompt_tokens", len(prompt) // 4)
+                        c_toks = usage.get("completion_tokens", len(text_val) // 4)
+                        cost = (p_toks * 0.05 + c_toks * 0.08) / 1_000_000
+
+                        parsed = parse_json_safely(text_val) if json_mode else None
+                        latency = (time.perf_counter() - start_time) * 1000
+
+                        return LLMResponse(
+                            content=text_val,
+                            parsed_json=parsed,
+                            latency_ms=latency,
+                            tokens_in=p_toks,
+                            tokens_out=c_toks,
+                            cost_usd=cost,
+                            provider="groq",
+                        )
+                    else:
+                        last_err = f"HTTP {resp.status_code}: {resp.text}"
+                except Exception as e:
+                    last_err = str(e)
+                await asyncio.sleep(0.4 * (2 ** attempt))
+
+            raise RuntimeError(f"Groq request failed after {retries} retries: {last_err}")
+
+    async def _call_openai_with_retry(
+        self,
+        prompt: str,
+        system_prompt: Optional[str],
+        temperature: float,
+        max_tokens: int,
+        json_mode: bool,
+        timeout_sec: float,
+        retries: int,
+        start_time: float,
+    ) -> LLMResponse:
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.openai_key}",
+            "Content-Type": "application/json",
+        }
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        body: Dict[str, Any] = {
+            "model": "gpt-4o-mini",
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if json_mode:
+            body["response_format"] = {"type": "json_object"}
+
+        async with httpx.AsyncClient(timeout=timeout_sec) as client:
+            last_err = None
+            for attempt in range(retries + 1):
+                try:
+                    resp = await client.post(url, headers=headers, json=body)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        choices = data.get("choices", [])
+                        text_val = choices[0].get("message", {}).get("content", "")
+                        usage = data.get("usage", {})
+                        p_toks = usage.get("prompt_tokens", len(prompt) // 4)
+                        c_toks = usage.get("completion_tokens", len(text_val) // 4)
+                        cost = (p_toks * 0.15 + c_toks * 0.60) / 1_000_000
+
+                        parsed = parse_json_safely(text_val) if json_mode else None
+                        latency = (time.perf_counter() - start_time) * 1000
+
+                        return LLMResponse(
+                            content=text_val,
+                            parsed_json=parsed,
+                            latency_ms=latency,
+                            tokens_in=p_toks,
+                            tokens_out=c_toks,
+                            cost_usd=cost,
+                            provider="openai",
+                        )
+                    else:
+                        last_err = f"HTTP {resp.status_code}: {resp.text}"
+                except Exception as e:
+                    last_err = str(e)
+                await asyncio.sleep(0.5 * (2 ** attempt))
+
+            raise RuntimeError(f"OpenAI request failed after {retries} retries: {last_err}")
 
     def _generate_mock(self, prompt: str, system_prompt: Optional[str], json_mode: bool) -> LLMResponse:
         """Deterministic, intelligent mock generator for offline tests, eval, and demo scenarios."""

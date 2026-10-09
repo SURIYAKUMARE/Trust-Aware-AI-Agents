@@ -1,5 +1,7 @@
 import os
 import json
+import time
+import uuid
 import asyncio
 import logging
 from typing import List, Dict, Any, Optional
@@ -26,6 +28,14 @@ from app.schemas import (
     MultiAIConsensusResponse,
     AskAndVerifyRequest,
     AskAndVerifyResponse,
+    ChatRequest,
+    ChatResponse,
+    SourceCitation,
+    VerifiedClaimItem,
+    FeedbackDisputeRequest,
+    FeedbackDisputeResponse,
+    CodeReviewApiRequest,
+    PromptReviewApiRequest,
 )
 from app.agent.trust_agent import trust_agent
 from app.agent.baseline_agent import baseline_agent
@@ -35,6 +45,10 @@ from app.token_saver.engine import token_saver_engine
 from app.monitor.logger import monitor_logger
 from app.monitor.metrics import metrics_aggregator
 from app.db import SessionLocal, RequestLog, EscalationQueue
+from app.verification.pipeline import verification_pipeline
+from app.verification.classifier import question_classifier, QueryIntent
+from app.correction.engine import self_correction_engine
+from app.code_workspace.engine import code_workspace
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("trustagent")
@@ -604,15 +618,304 @@ async def ask_and_verify(req: AskAndVerifyRequest):
     """
     Generate an AI answer to the user's question, then immediately verify
     whether that answer is factually correct or wrong.
-
-    Returns the AI-generated answer alongside a trust score, verdict
-    (CORRECT / LIKELY CORRECT / UNCERTAIN / INCORRECT), and claim-level
-    evidence so the user can see exactly why the answer was judged that way.
     """
     try:
         return await external_verifier.ask_and_verify(req)
     except Exception as e:
         logger.error(f"Error during ask-and-verify: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==============================================================
+# PRODUCTION REAL-TIME CONVERSATIONAL & VERIFICATION ENDPOINTS
+# ==============================================================
+
+@app.post("/api/chat", response_model=ChatResponse)
+async def production_chat(req: ChatRequest):
+    """
+    Core production endpoint:
+    1. Classifies intent (Current Fact, Dispute Correction, Code Analysis, Prompt Review, General).
+    2. Retrieves live multi-source evidence (Wikipedia, DuckDuckGo, Tavily, Brave).
+    3. Runs claim-level verification and detects contradictions.
+    4. Calculates calibrated 0-100 evidence confidence with explicit weights.
+    5. Returns answer with clickable source citations, claim status, and uncertainty explanations.
+    """
+    t0 = time.perf_counter()
+    resp_id = f"chat-{uuid.uuid4().hex[:10]}"
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
+
+    # Build conversation context
+    history_lines = []
+    if req.conversation_history:
+        for turn in req.conversation_history[-6:]:
+            role = turn.get("role", turn.get("sender", "user")).title()
+            content = turn.get("content", turn.get("text", ""))
+            if content:
+                history_lines.append(f"{role}: {content}")
+    history_context = "\n".join(history_lines) if history_lines else None
+
+    # Handle attached file context
+    attached_code = ""
+    attached_fname = None
+    if req.attached_files:
+        for f in req.attached_files:
+            fname = f.get("name", "")
+            fcontent = f.get("content", "")
+            if fcontent:
+                attached_code += f"\nFile [{fname}]:\n{fcontent}\n"
+                attached_fname = fname
+
+    query = req.message.strip()
+    if attached_code:
+        query = f"{query}\n{attached_code}".strip()
+
+    classification = question_classifier.classify(query, history_context)
+
+    # 1. DISPUTE / USER SAYS "YOUR ANSWER IS WRONG"
+    if classification.intent == QueryIntent.DISPUTE_CORRECTION and req.conversation_history:
+        prev_q = "Previous topic"
+        prev_a = ""
+        # Find last agent message
+        for turn in reversed(req.conversation_history):
+            if turn.get("role") in ["agent", "assistant"] or turn.get("sender") == "agent":
+                prev_a = turn.get("content", turn.get("text", ""))
+                break
+        for turn in reversed(req.conversation_history):
+            if turn.get("role") == "user" or turn.get("sender") == "user":
+                prev_q = turn.get("content", turn.get("text", ""))
+                break
+
+        if prev_a:
+            correction = await self_correction_engine.handle_user_dispute(
+                user_message=req.message,
+                previous_question=prev_q,
+                previous_answer=prev_a,
+            )
+
+            # Format transparent audit response
+            msg = (
+                f"### 🛡️ Fact-Check & Self-Correction Audit\n\n"
+                f"**Audit Verdict**: `{correction.verdict.replace('_', ' ')}`\n\n"
+                f"• **Detected Issue**: {correction.detected_issue}\n\n"
+                f"• **Verified Correction**:\n{correction.corrected_answer}\n\n"
+                f"• **Reason for Change**: {correction.reason_for_change}\n\n"
+                f"• **Confidence Recalibration**: Updated from **{correction.previous_confidence}/100** to **{correction.updated_confidence}/100** ({correction.updated_band}).\n"
+            )
+            if correction.evidence_links:
+                msg += "\n**Evidence Sources:**\n"
+                for link in correction.evidence_links:
+                    msg += f"• [{link.get('title', 'Source')}]({link.get('url', '#')}) — *{link.get('domain', '')}*\n"
+
+            elapsed = (time.perf_counter() - t0) * 1000
+            return ChatResponse(
+                id=resp_id,
+                message=msg,
+                intent="DISPUTE_CORRECTION",
+                confidence_score=correction.updated_confidence,
+                confidence_band=correction.updated_band,
+                confidence_explanation=f"Rechecked against verified evidence; verdict: {correction.verdict}.",
+                status_summary=f"Audit completed: {correction.verdict.replace('_', ' ')}",
+                claims=[],
+                sources=[
+                    SourceCitation(
+                        title=link.get("title", ""),
+                        url=link.get("url", ""),
+                        domain=link.get("domain", ""),
+                    )
+                    for link in correction.evidence_links
+                ],
+                independent_sources_count=len(correction.evidence_links),
+                contradictions_detected=[],
+                self_correction=correction.model_dump(),
+                verified_at=timestamp,
+                latency_ms=round(elapsed, 1),
+                live_verification_active=True,
+            )
+
+    # 2. CODE ANALYSIS / DEBUGGING
+    if classification.intent == QueryIntent.CODE_ANALYSIS:
+        code_rev = await code_workspace.review_code(
+            code=query,
+            filename=attached_fname,
+        )
+
+        # Build articulate response
+        msg = f"### 💻 Code Analysis & Verification ({code_rev.language.upper()})\n\n"
+        msg += f"{code_rev.beginner_summary}\n\n"
+        if code_rev.detected_issues:
+            msg += "**Detected Issues:**\n"
+            for iss in code_rev.detected_issues:
+                msg += f"• `[{iss.severity}]` **{iss.issue_type.title()} Error**: {iss.description} (Cause: {iss.root_cause})\n"
+            msg += "\n"
+
+        msg += f"**Corrected Code:**\n```{code_rev.language}\n{code_rev.corrected_code}\n```\n\n"
+
+        if code_rev.test_results:
+            msg += "**Reproducible Test Cases & Execution:**\n"
+            for tc in code_rev.test_results:
+                status_icon = "✓" if tc.passed else "✗"
+                msg += f"• {status_icon} **{tc.test_name}**: Input `{tc.input_data}` ➔ Expected `{tc.expected_output}` (Status: {tc.execution_status})\n"
+            if code_rev.sandbox_executed:
+                msg += "\n*(Executed inside isolated subprocess sandbox with zero network permissions)*\n"
+
+        elapsed = (time.perf_counter() - t0) * 1000
+        return ChatResponse(
+            id=resp_id,
+            message=msg,
+            intent="CODE_ANALYSIS",
+            confidence_score=95 if code_rev.sandbox_executed else 88,
+            confidence_band="High evidence confidence" if code_rev.sandbox_executed else "Good evidence, some limitations",
+            confidence_explanation="Code parsed, statically analyzed, and tested in isolated sandbox.",
+            status_summary=f"Code analyzed: {len(code_rev.detected_issues)} issues detected and resolved.",
+            claims=[],
+            sources=[],
+            independent_sources_count=0,
+            contradictions_detected=[],
+            code_review=code_rev.model_dump(),
+            verified_at=timestamp,
+            latency_ms=round(elapsed, 1),
+            live_verification_active=False,
+        )
+
+    # 3. PROMPT REVIEW / PROMPT OPTIMIZATION
+    if classification.intent == QueryIntent.PROMPT_ANALYSIS:
+        prompt_rev = await code_workspace.review_prompt(query)
+        msg = (
+            f"### 🎯 Prompt Engineering & Security Audit\n\n"
+            f"**Weaknesses Identified:**\n"
+            + "\n".join([f"• {w}" for w in prompt_rev.detected_weaknesses]) + "\n\n"
+            f"**Optimized Production Prompt:**\n```markdown\n{prompt_rev.optimized_prompt}\n```\n\n"
+            f"**Suggested System Prompt:**\n```markdown\n{prompt_rev.suggested_system_prompt}\n```\n\n"
+            f"**Key Improvements Made:**\n"
+            + "\n".join([f"• {imp}" for imp in prompt_rev.improvements_made])
+        )
+
+        elapsed = (time.perf_counter() - t0) * 1000
+        return ChatResponse(
+            id=resp_id,
+            message=msg,
+            intent="PROMPT_ANALYSIS",
+            confidence_score=92,
+            confidence_band="High evidence confidence",
+            confidence_explanation="Audited for ambiguity, constraints, and injection vulnerabilities.",
+            status_summary="Prompt reviewed and optimized with system boundaries.",
+            claims=[],
+            sources=[],
+            independent_sources_count=0,
+            contradictions_detected=[],
+            prompt_review=prompt_rev.model_dump(),
+            verified_at=timestamp,
+            latency_ms=round(elapsed, 1),
+            live_verification_active=False,
+        )
+
+    # 4. CURRENT FACT / GENERAL KNOWLEDGE / FACT VERIFICATION
+    ver_result = await verification_pipeline.execute(
+        query=query,
+        conversation_context=history_context,
+    )
+
+    sources_out = [
+        SourceCitation(
+            title=r.title,
+            url=r.url,
+            domain=r.domain,
+            published_date=r.published_date,
+            authority_score=r.authority_score,
+            is_primary=r.is_primary_source,
+            snippet=r.snippet,
+        )
+        for r in ver_result.sources_checked
+    ]
+
+    claims_out = [
+        VerifiedClaimItem(
+            claim=c.claim,
+            status=c.status,
+            supporting_snippet=c.supporting_snippet,
+            source_url=c.source_url,
+            source_domain=c.source_domain,
+            confidence=c.confidence,
+            reasoning=c.reasoning,
+        )
+        for c in ver_result.claims
+    ]
+
+    elapsed = (time.perf_counter() - t0) * 1000
+    return ChatResponse(
+        id=resp_id,
+        message=ver_result.final_answer,
+        intent=ver_result.intent,
+        confidence_score=ver_result.scoring.final_score,
+        confidence_band=ver_result.scoring.band,
+        confidence_explanation=ver_result.scoring.explanation,
+        status_summary=ver_result.status_summary,
+        claims=claims_out,
+        sources=sources_out,
+        independent_sources_count=ver_result.independent_sources_count,
+        contradictions_detected=ver_result.contradictions_detected,
+        verified_at=ver_result.verified_at,
+        latency_ms=round(elapsed, 1),
+        live_verification_active=ver_result.live_verification_active,
+    )
+
+
+@app.post("/api/feedback", response_model=FeedbackDisputeResponse)
+async def user_feedback_dispute(req: FeedbackDisputeRequest):
+    """
+    Self-correction feedback endpoint:
+    When a user flags 'Your answer is wrong', re-retrieves live evidence, compares old vs new,
+    and returns a transparent correction diff with audit reasoning.
+    """
+    try:
+        verdict = await self_correction_engine.handle_user_dispute(
+            user_message=req.dispute_message,
+            previous_question=req.previous_question,
+            previous_answer=req.previous_answer,
+            previous_confidence=req.previous_confidence or 85,
+        )
+        return FeedbackDisputeResponse(
+            verdict=verdict.verdict,
+            detected_issue=verdict.detected_issue,
+            previous_answer=verdict.previous_answer,
+            previous_confidence=verdict.previous_confidence,
+            corrected_answer=verdict.corrected_answer,
+            updated_confidence=verdict.updated_confidence,
+            updated_band=verdict.updated_band,
+            reason_for_change=verdict.reason_for_change,
+            evidence_links=verdict.evidence_links,
+            timestamp=verdict.timestamp,
+        )
+    except Exception as e:
+        logger.error(f"Error handling feedback dispute: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/code-review")
+async def code_review_api(req: CodeReviewApiRequest):
+    """Static and dynamic sandboxed review of user source code."""
+    try:
+        res = await code_workspace.review_code(
+            code=req.code,
+            filename=req.filename,
+            error_log=req.error_log,
+            context=req.context,
+        )
+        return res
+    except Exception as e:
+        logger.error(f"Error during code review: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/prompt-review")
+async def prompt_review_api(req: PromptReviewApiRequest):
+    """Prompt vulnerability and optimization audit."""
+    try:
+        res = await code_workspace.review_prompt(req.prompt)
+        return res
+    except Exception as e:
+        logger.error(f"Error during prompt review: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 

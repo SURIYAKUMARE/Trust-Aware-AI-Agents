@@ -303,16 +303,30 @@ export function App() {
           token_saver_info: tokenSaverInfo,
         };
       } else {
-        const trace = await api.ask(promptToSend, activeSessionId, modelProfile, historyContext, files);
-        setLatestTrace(trace);
+        const chatRes = await api.chat(promptToSend, activeSessionId, historyContext, files);
         agentMessage = {
-          id: `msg-${Date.now() + 1}`,
+          id: chatRes.id || `msg-${Date.now() + 1}`,
           sender: 'agent',
-          text: trace.answer,
+          text: chatRes.message,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          trace: trace,
-          sources: trace.sources,
+          sources: chatRes.sources?.map((s: any) => s.url && s.url !== '#' ? s.url : s.title) || [],
           token_saver_info: tokenSaverInfo,
+          verification_data: {
+            confidence_score: chatRes.confidence_score,
+            confidence_band: chatRes.confidence_band,
+            confidence_explanation: chatRes.confidence_explanation,
+            status_summary: chatRes.status_summary,
+            claims: chatRes.claims || [],
+            sources: chatRes.sources || [],
+            independent_sources_count: chatRes.independent_sources_count || 0,
+            contradictions_detected: chatRes.contradictions_detected || [],
+            code_review: chatRes.code_review,
+            prompt_review: chatRes.prompt_review,
+            self_correction: chatRes.self_correction,
+            verified_at: chatRes.verified_at,
+            latency_ms: chatRes.latency_ms,
+            live_verification_active: chatRes.live_verification_active,
+          },
         };
       }
 

@@ -200,6 +200,43 @@ export interface TokenSaverInfo {
   cost_saved_usd?: number;
 }
 
+export interface VerifiedSourceItem {
+  title: string;
+  url: string;
+  domain: string;
+  published_date?: string;
+  authority_score?: number;
+  is_primary?: boolean;
+  snippet?: string;
+}
+
+export interface VerifiedClaimDisplayItem {
+  claim: string;
+  status: 'SUPPORTED' | 'PARTIALLY_SUPPORTED' | 'CONTRADICTED' | 'UNVERIFIABLE' | 'OUTDATED' | 'NOT_APPLICABLE';
+  supporting_snippet?: string;
+  source_url?: string;
+  source_domain?: string;
+  confidence?: number;
+  reasoning?: string;
+}
+
+export interface LiveVerificationData {
+  confidence_score: number;       // 0 to 100
+  confidence_band: string;        // 'High evidence confidence' | 'Good evidence, some limitations' | 'Mixed or incomplete evidence' | 'Low evidence confidence' | 'No usable verification evidence'
+  confidence_explanation: string;
+  status_summary: string;
+  claims: VerifiedClaimDisplayItem[];
+  sources: VerifiedSourceItem[];
+  independent_sources_count: number;
+  contradictions_detected: string[];
+  code_review?: any;
+  prompt_review?: any;
+  self_correction?: any;
+  verified_at?: string;
+  latency_ms?: number;
+  live_verification_active: boolean;
+}
+
 export interface ChatMessage {
   id: string;
   sender: 'user' | 'agent';
@@ -213,6 +250,7 @@ export interface ChatMessage {
   consensus_result?: MultiAIConsensusResult;
   token_saver_info?: TokenSaverInfo;
   compare_result?: CompareResult;
+  verification_data?: LiveVerificationData;
 }
 
 export interface ConversationSession {
